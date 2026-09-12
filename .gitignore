@@ -1,0 +1,9 @@
+.dart_tool/
+.flutter-plugins*
+.tools/
+build/
+config/local.json
+*.log
+windows/flutter/ephemeral/
+.idea/
+*.iml

@@ -1,0 +1,24 @@
+name: Member 1 checks
+on: [push, pull_request]
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.4'
+          channel: stable
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: flutter pub get
+      - run: flutter analyze --no-pub
+      - run: flutter test --no-pub
+      - run: node --test backend/test/core.test.cjs
+      - run: flutter build windows --release --no-pub --dart-define=DEMO_MODE=true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fap-attendance-windows-demo
+          path: build/windows/x64/runner/Release/
