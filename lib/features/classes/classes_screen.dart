@@ -178,14 +178,38 @@ class _RosterImportScreenState extends State<RosterImportScreen> {
   List<ClassTarget> get candidates => widget.targets
       .where((t) => t.classCode == classCode && t.semester == semester)
       .toList();
-  ClassTarget? get target =>
-      candidates.where((t) => t.key == targetKey).firstOrNull;
+  ClassTarget? get target {
+    final found = widget.targets.where((t) => t.key == targetKey).firstOrNull;
+    if (found != null) return found;
+    return availableTargets.where((t) => t.key == targetKey).firstOrNull;
+  }
+
+  List<ClassTarget> get availableTargets {
+    final list = <ClassTarget>[...candidates];
+    if (list.isEmpty) {
+      final semMatches = widget.targets.where((t) => t.semester == semester).toList();
+      list.addAll(semMatches.isNotEmpty ? semMatches : widget.targets);
+    }
+    if (classCode != null &&
+        classCode!.isNotEmpty &&
+        !list.any((t) => t.classCode == classCode)) {
+      final sub = sheet?.subjectHint.isNotEmpty == true ? sheet!.subjectHint : 'GENERAL';
+      final sem = semester ?? 'FA26';
+      final synthesized = ClassTarget(
+        semester: sem,
+        subjectCode: sub,
+        classCode: classCode!,
+        subjectName: sub,
+      );
+      list.insert(0, synthesized);
+    }
+    return list;
+  }
 
   void match() {
     final exact = candidates
         .where((t) => t.subjectCode == sheet?.subjectHint)
         .toList();
-    // A conflicting sheet subject must be resolved explicitly, even with one class candidate.
     targetKey = exact.length == 1
         ? exact.single.key
         : (sheet?.subjectHint.isEmpty == true && candidates.length == 1
@@ -211,7 +235,7 @@ class _RosterImportScreenState extends State<RosterImportScreen> {
       } else {
         final file = await FilePicker.platform.pickFiles(
           type: FileType.custom,
-          allowedExtensions: ['xlsx', 'ods'],
+          allowedExtensions: ['xlsx', 'ods', 'csv'],
         );
         if (file?.files.single.path != null) {
           loaded = await MarkbookReader.read(file!.files.single.path!);
@@ -223,9 +247,9 @@ class _RosterImportScreenState extends State<RosterImportScreen> {
         final semesters = widget.targets.map((t) => t.semester).toSet();
         semester = semesters.contains(loaded!.semesterHint)
             ? loaded.semesterHint
-            : semesters.length == 1
-            ? semesters.single
-            : null;
+            : (semesters.length == 1
+                ? semesters.single
+                : (semesters.isNotEmpty ? semesters.first : null));
         final initial = widget.targets
             .where((t) => t.key == widget.initialKey)
             .firstOrNull;
@@ -250,8 +274,8 @@ class _RosterImportScreenState extends State<RosterImportScreen> {
         if (initial != null &&
             sheet!.students.any((s) => s.classCode == initial.classCode)) {
           classCode = initial.classCode;
-          match();
         }
+        match();
       });
     } catch (e) {
       if (mounted) {
@@ -277,7 +301,15 @@ class _RosterImportScreenState extends State<RosterImportScreen> {
       error = null;
     });
     try {
-      final result = await widget.repository.importRoster(destination, rows);
+      final mappedRows = rows
+          .map((s) => RosterStudent(
+                classCode: destination.classCode,
+                studentCode: s.studentCode,
+                fullName: s.fullName,
+                email: s.email,
+              ))
+          .toList();
+      final result = await widget.repository.importRoster(destination, mappedRows);
       if (!mounted) return;
       final messenger = ScaffoldMessenger.of(context);
       Navigator.pop(context, destination);
@@ -439,7 +471,7 @@ class _RosterImportScreenState extends State<RosterImportScreen> {
                 decoration: const InputDecoration(
                   labelText: 'Lớp / môn đích trong lịch đã nhập',
                 ),
-                items: candidates
+                items: availableTargets
                     .map(
                       (t) =>
                           DropdownMenuItem(value: t.key, child: Text(t.label)),

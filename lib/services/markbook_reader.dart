@@ -54,105 +54,134 @@ class MarkbookReader {
     if (bytes.length > 20 * 1024 * 1024) {
       throw const AppException('File lớn hơn 20 MB.');
     }
-    final zip = ZipDecoder().decodeBytes(bytes);
-    if (zip.files.fold<int>(0, (sum, f) => sum + f.size) > 100 * 1024 * 1024) {
-      throw const AppException(
-        'Nội dung file quá lớn. Hãy tách từng lớp thành file riêng.',
-      );
-    }
-    XmlDocument xml(String name) {
-      final f = zip.findFile(name);
-      if (f == null) throw AppException('Thiếu dữ liệu bảng tính: $name');
-      return XmlDocument.parse(utf8.decode(f.content));
-    }
-
     final sheets = <MarkbookSheet>[];
-    if (zip.findFile('content.xml') != null) {
-      for (final table in elements(xml('content.xml'), 'table')) {
-        final rows = <List<String>>[];
-        for (final row in elements(table, 'table-row')) {
-          final cells = <String>[];
-          for (final cell in row.childElements.where(
-            (c) => ['table-cell', 'covered-table-cell'].contains(c.name.local),
-          )) {
-            final value = elements(
-              cell,
-              'p',
-            ).map((p) => p.innerText).join(' ').trim();
-            final count =
-                int.tryParse(attr(cell, 'number-columns-repeated')) ?? 1;
-            for (var n = 0; n < count && cells.length < 256; n++) {
-              cells.add(value);
-            }
-          }
-          if (cells.every((v) => v.isEmpty)) continue;
-          final repeats = int.tryParse(attr(row, 'number-rows-repeated')) ?? 1;
-          if (rows.length + repeats > 20000) {
-            throw const AppException('Sheet có quá nhiều dòng.');
-          }
-          for (var n = 0; n < repeats; n++) {
-            rows.add(cells);
-          }
-        }
-        sheets.add(parseRows(attr(table, 'name'), rows));
+    try {
+      final zip = ZipDecoder().decodeBytes(bytes);
+      if (zip.files.fold<int>(0, (sum, f) => sum + f.size) > 100 * 1024 * 1024) {
+        throw const AppException(
+          'Nội dung file quá lớn. Hãy tách từng lớp thành file riêng.',
+        );
       }
-    } else if (zip.findFile('xl/workbook.xml') != null) {
-      final strings = zip.findFile('xl/sharedStrings.xml') == null
-          ? <String>[]
-          : elements(xml('xl/sharedStrings.xml'), 'si')
-                .map((s) => elements(s, 't').map((t) => t.innerText).join())
-                .toList();
-      final rels = {
-        for (final r in elements(
-          xml('xl/_rels/workbook.xml.rels'),
-          'Relationship',
-        ))
-          attr(r, 'Id'): attr(r, 'Target'),
-      };
-      for (final sheet in elements(xml('xl/workbook.xml'), 'sheet')) {
-        final target = rels[attr(sheet, 'id')];
-        if (target == null) {
-          throw const AppException('Không tìm thấy sheet trong Excel.');
-        }
-        final name = Uri.parse(
-          'xl/workbook.xml',
-        ).resolve(target).path.replaceFirst(RegExp(r'^/'), '');
-        final rows = <List<String>>[];
-        for (final row in elements(xml(name), 'row')) {
-          final cells = <String>[];
-          for (final c in row.childElements.where((e) => e.name.local == 'c')) {
-            var col = 0;
-            final ref = RegExp(r'^[A-Z]+').stringMatch(attr(c, 'r')) ?? '';
-            for (final char in ref.codeUnits) {
-              col = col * 26 + char - 64;
-            }
-            if (col == 0) col = cells.length + 1;
-            if (col > 256) continue;
-            while (cells.length < col) {
-              cells.add('');
-            }
-            final value = elements(c, 'v').map((e) => e.innerText).join();
-            final type = attr(c, 't');
-            final idx = int.tryParse(value);
-            cells[col - 1] = type == 's'
-                ? (idx != null && idx >= 0 && idx < strings.length
-                      ? strings[idx]
-                      : '')
-                : type == 'inlineStr'
-                ? elements(c, 't').map((e) => e.innerText).join()
-                : value;
-          }
-          if (cells.any((v) => v.trim().isNotEmpty)) rows.add(cells);
-          if (rows.length > 20000) {
-            throw const AppException('Sheet có quá nhiều dòng.');
-          }
-        }
-        sheets.add(parseRows(attr(sheet, 'name'), rows));
+      XmlDocument xml(String name) {
+        final f = zip.findFile(name);
+        if (f == null) throw AppException('Thiếu dữ liệu bảng tính: $name');
+        return XmlDocument.parse(utf8.decode(f.content));
       }
-    } else {
-      throw const AppException(
-        'Chỉ hỗ trợ Excel .xlsx và OpenDocument .ods. Với .xls hãy Save As .xlsx.',
-      );
+
+      if (zip.findFile('content.xml') != null) {
+        for (final table in elements(xml('content.xml'), 'table')) {
+          final rows = <List<String>>[];
+          for (final row in elements(table, 'table-row')) {
+            final cells = <String>[];
+            for (final cell in row.childElements.where(
+              (c) => ['table-cell', 'covered-table-cell'].contains(c.name.local),
+            )) {
+              final value = elements(
+                cell,
+                'p',
+              ).map((p) => p.innerText).join(' ').trim();
+              final count =
+                  int.tryParse(attr(cell, 'number-columns-repeated')) ?? 1;
+              for (var n = 0; n < count && cells.length < 256; n++) {
+                cells.add(value);
+              }
+            }
+            if (cells.every((v) => v.isEmpty)) continue;
+            final repeats = int.tryParse(attr(row, 'number-rows-repeated')) ?? 1;
+            if (rows.length + repeats > 20000) {
+              throw const AppException('Sheet có quá nhiều dòng.');
+            }
+            for (var n = 0; n < repeats; n++) {
+              rows.add(cells);
+            }
+          }
+          sheets.add(parseRows(attr(table, 'name'), rows));
+        }
+      } else if (zip.findFile('xl/workbook.xml') != null) {
+        final strings = zip.findFile('xl/sharedStrings.xml') == null
+            ? <String>[]
+            : elements(xml('xl/sharedStrings.xml'), 'si')
+                  .map((s) => elements(s, 't').map((t) => t.innerText).join())
+                  .toList();
+        final rels = {
+          for (final r in elements(
+            xml('xl/_rels/workbook.xml.rels'),
+            'Relationship',
+          ))
+            attr(r, 'Id'): attr(r, 'Target'),
+        };
+        for (final sheet in elements(xml('xl/workbook.xml'), 'sheet')) {
+          final target = rels[attr(sheet, 'id')];
+          if (target == null) {
+            throw const AppException('Không tìm thấy sheet trong Excel.');
+          }
+          final name = Uri.parse(
+            'xl/workbook.xml',
+          ).resolve(target).path.replaceFirst(RegExp(r'^/'), '');
+          final rows = <List<String>>[];
+          for (final row in elements(xml(name), 'row')) {
+            final cells = <String>[];
+            for (final c in row.childElements.where((e) => e.name.local == 'c')) {
+              var col = 0;
+              final ref = RegExp(r'^[A-Z]+').stringMatch(attr(c, 'r')) ?? '';
+              for (final char in ref.codeUnits) {
+                col = col * 26 + char - 64;
+              }
+              if (col == 0) col = cells.length + 1;
+              if (col > 256) continue;
+              while (cells.length < col) {
+                cells.add('');
+              }
+              final value = elements(c, 'v').map((e) => e.innerText).join();
+              final type = attr(c, 't');
+              final idx = int.tryParse(value);
+              cells[col - 1] = type == 's'
+                  ? (idx != null && idx >= 0 && idx < strings.length
+                        ? strings[idx]
+                        : '')
+                  : type == 'inlineStr'
+                  ? elements(c, 't').map((e) => e.innerText).join()
+                  : value;
+            }
+            if (cells.any((v) => v.trim().isNotEmpty)) rows.add(cells);
+            if (rows.length > 20000) {
+              throw const AppException('Sheet có quá nhiều dòng.');
+            }
+          }
+          sheets.add(parseRows(attr(sheet, 'name'), rows));
+        }
+      } else {
+        throw const AppException(
+          'Chỉ hỗ trợ Excel .xlsx, OpenDocument .ods và .csv. Với .xls hãy Save As .xlsx.',
+        );
+      }
+    } catch (e) {
+      if (e is AppException) rethrow;
+      if (filename.toLowerCase().endsWith('.csv') ||
+          !filename.toLowerCase().endsWith('.xlsx') &&
+              !filename.toLowerCase().endsWith('.ods')) {
+        try {
+          final content = utf8.decode(bytes, allowMalformed: true);
+          final lines = const LineSplitter().convert(content);
+          final rows = <List<String>>[];
+          for (final line in lines) {
+            if (line.trim().isEmpty) continue;
+            final delimiter = line.contains(';') && !line.contains(',') ? ';' : ',';
+            final cells = line.split(delimiter).map((c) => c.trim().replaceAll(RegExp(r'^"|"€'), '')).toList();
+            if (cells.any((v) => v.isNotEmpty)) rows.add(cells);
+          }
+          if (rows.isNotEmpty) {
+            final sheetName = filename.replaceAll('\\', '/').split('/').last;
+            sheets.add(parseRows(sheetName, rows));
+          }
+        } catch (_) {
+          throw const AppException('File CSV không hợp lệ hoặc lỗi mã hóa UTF-8.');
+        }
+      } else {
+        throw const AppException(
+          'Chỉ hỗ trợ Excel .xlsx, OpenDocument .ods và .csv. Với .xls hãy Save As .xlsx.',
+        );
+      }
     }
     if (sheets.isEmpty) throw const AppException('File không có sheet.');
     final base = filename.replaceAll('\\', '/').split('/').last.toUpperCase();

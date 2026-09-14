@@ -7,3 +7,7 @@ config/local.json
 windows/flutter/ephemeral/
 .idea/
 *.iml
+.agents/  
+.obsidian/
+_Build_Logs/
+.PRM393_FAP_Attendance_Team_Assignment_Final.md
