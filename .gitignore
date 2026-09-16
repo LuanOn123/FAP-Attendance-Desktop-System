@@ -12,3 +12,4 @@ windows/flutter/ephemeral/
 _Build_Logs/
 .PRM393_FAP_Attendance_Team_Assignment_Final.md
 /config/local.json
+.firebase/

@@ -10,15 +10,19 @@ import 'ocr_review_screen.dart';
 import 'schedule_editor.dart';
 import 'weekly_timetable.dart';
 import '../classes/classes_screen.dart';
+import '../attendance/attendance_screen.dart';
+import '../../repositories/attendance_repository.dart';
 
 class ScheduleScreen extends StatefulWidget {
   final Lecturer lecturer;
   final ScheduleRepository repository;
+  final AttendanceRepository? attendanceRepository;
   final Future<void> Function() onLogout;
   const ScheduleScreen({
     super.key,
     required this.lecturer,
     required this.repository,
+    this.attendanceRepository,
     required this.onLogout,
   });
   @override
@@ -33,6 +37,12 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   String? classError;
   final search = TextEditingController();
   String query = '';
+  late final AttendanceRepository _attendanceRepo =
+      widget.attendanceRepository ??
+          (widget.repository is SheetScheduleRepository
+              ? SheetAttendanceRepository(
+                  (widget.repository as SheetScheduleRepository).sheets)
+              : DemoAttendanceRepository());
   int destination = 0;
   bool weekly = true;
   String? semesterFilter;
@@ -242,11 +252,11 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
               repository: widget.repository,
               onChanged: load,
             ),
-            2 => const ModulePlaceholder(
-              title: 'Phiên điểm danh',
-              owner: 'Member 3',
-              description:
-                  'Điểm tích hợp session, QR động và check-in. ClassMappingService cung cấp lớp duy nhất đã ghép với lịch dạy.',
+            2 => AttendanceScreen(
+              lecturer: widget.lecturer,
+              schedules: schedules,
+              classes: classes,
+              repository: _attendanceRepo,
             ),
             3 => const ModulePlaceholder(
               title: 'Theo dõi & báo cáo',

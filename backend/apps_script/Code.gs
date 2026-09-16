@@ -132,6 +132,191 @@ function writeSchedules_(cfg, sheet, rows, lecturer, action) {
   Sheets.Spreadsheets.batchUpdate({requests}, cfg.id);
 }
 
+function handleSession_(book, cfg, lecturer, request) {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(15000)) throw new Error('Máy chủ đang bận. Thử lại sau.');
+  try {
+    const sessions = read_(book, 'Sessions');
+    if (request.action === 'createSession') {
+      const classId = String(request.classId || '').trim();
+      const slot = String(request.slot || '').trim();
+      const date = String(request.date || '').trim();
+      const startTime = String(request.startTime || '').trim();
+      const endTime = String(request.endTime || '').trim();
+      const token = String(request.currentToken || '').trim();
+      const secret = String(request.currentSecretCode || '').trim();
+      const expiredAt = String(request.tokenExpiredAt || '').trim();
+
+      if (!classId || !date || !slot) throw new Error('Thiếu thông tin tạo phiên điểm danh.');
+      const sessionId = Utilities.getUuid();
+      const combinedToken = secret ? (token + '#' + secret) : token;
+
+      const newRow = {
+        sessionId: sessionId,
+        classId: classId,
+        date: date,
+        slot: slot,
+        startTime: startTime,
+        endTime: endTime,
+        status: 'OPEN',
+        currentToken: combinedToken,
+        tokenExpiredAt: expiredAt,
+        createdBy: lecturer.lecturerId
+      };
+
+      const sheet = sessions.sheet;
+      const columns = SCHEMA.Sessions;
+      sheet.appendRow(columns.map(k => String(newRow[k] || '')));
+      return {
+        ...newRow,
+        currentSecretCode: secret
+      };
+    }
+
+    if (request.action === 'rotateToken') {
+      const sessionId = String(request.sessionId || '').trim();
+      const token = String(request.currentToken || '').trim();
+      const secret = String(request.currentSecretCode || '').trim();
+      const expiredAt = String(request.tokenExpiredAt || '').trim();
+
+      const index = sessions.rows.findIndex(r => r.sessionId === sessionId);
+      if (index === -1) throw new Error('Không tìm thấy phiên điểm danh.');
+      if (sessions.rows[index].createdBy !== lecturer.lecturerId) throw new Error('Không có quyền sửa phiên điểm danh này.');
+
+      const combinedToken = secret ? (token + '#' + secret) : token;
+      const rowIndex = index + 2;
+      const tokenCol = SCHEMA.Sessions.indexOf('currentToken') + 1;
+      const expCol = SCHEMA.Sessions.indexOf('tokenExpiredAt') + 1;
+
+      sessions.sheet.getRange(rowIndex, tokenCol).setValue(combinedToken);
+      sessions.sheet.getRange(rowIndex, expCol).setValue(expiredAt);
+      return {saved: true};
+    }
+
+    if (request.action === 'closeSession') {
+      const sessionId = String(request.sessionId || '').trim();
+      const index = sessions.rows.findIndex(r => r.sessionId === sessionId);
+      if (index === -1) throw new Error('Không tìm thấy phiên điểm danh.');
+      if (sessions.rows[index].createdBy !== lecturer.lecturerId) throw new Error('Không có quyền kết thúc phiên điểm danh này.');
+
+      const rowIndex = index + 2;
+      const statusCol = SCHEMA.Sessions.indexOf('status') + 1;
+      sessions.sheet.getRange(rowIndex, statusCol).setValue('CLOSED');
+      return {closed: true};
+    }
+
+    if (request.action === 'getSessionAttendance') {
+      const sessionId = String(request.sessionId || '').trim();
+      const attendance = read_(book, 'Attendance').rows.filter(r => r.sessionId === sessionId);
+      const students = read_(book, 'Students').rows;
+      const studentMap = new Map(students.map(s => [s.studentId, s]));
+
+      return attendance.map(a => {
+        const student = studentMap.get(a.studentId);
+        return {
+          ...a,
+          studentCode: student ? student.studentCode : '',
+          fullName: student ? student.fullName : ''
+        };
+      });
+    }
+
+    throw new Error('Thao tác session chưa được hỗ trợ.');
+  } finally { lock.releaseLock(); }
+}
+
+function handleStudentCheckIn_(request) {
+  const sessionId = String(request.sessionId || '').trim();
+  const token = String(request.token || '').trim();
+  const secretCode = String(request.secretCode || '').trim();
+  const studentCode = String(request.studentCode || '').trim().toUpperCase();
+  const email = String(request.email || '').trim().toLowerCase();
+
+  if (!sessionId || !studentCode || !secretCode) {
+    throw new Error('Vui lòng điền đầy đủ mã sinh viên và Secret Code.');
+  }
+
+  const cfg = config_();
+  const book = SpreadsheetApp.openById(cfg.id);
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(15000)) throw new Error('Hệ thống đang bận ghi nhận điểm danh. Vui lòng bấm thử lại.');
+
+  try {
+    const sessions = read_(book, 'Sessions');
+    const session = sessions.rows.find(r => r.sessionId === sessionId);
+    if (!session) throw new Error('Phiên điểm danh không tồn tại.');
+    if (String(session.status).toUpperCase() !== 'OPEN') throw new Error('Phiên điểm danh đã kết thúc.');
+
+    const parts = String(session.currentToken || '').split('#');
+    const expectedToken = parts[0] || '';
+    const expectedSecret = parts[1] || '';
+
+    if (expectedSecret && secretCode !== expectedSecret) {
+      throw new Error('Secret Code không chính xác. Vui lòng nhìn lại trên màn hình máy chiếu.');
+    }
+
+    if (token && expectedToken && token !== expectedToken) {
+      const expiredTime = new Date(session.tokenExpiredAt).getTime();
+      const now = Date.now();
+      if (!isNaN(expiredTime) && now > expiredTime + 30000) {
+        throw new Error('Mã QR đã hết hạn. Vui lòng quét lại mã mới nhất trên máy chiếu.');
+      }
+    }
+
+    const students = read_(book, 'Students').rows;
+    let student = students.find(s => String(s.studentCode).trim().toUpperCase() === studentCode);
+    if (!student && email) {
+      student = students.find(s => String(s.schoolEmail).trim().toLowerCase() === email);
+    }
+    if (!student) {
+      throw new Error('Không tìm thấy thông tin sinh viên với mã: ' + studentCode);
+    }
+
+    const enrollments = read_(book, 'Enrollments').rows;
+    const isEnrolled = enrollments.some(e => e.classId === session.classId && e.studentId === student.studentId);
+    if (!isEnrolled) {
+      throw new Error('Sinh viên ' + studentCode + ' không thuộc danh sách lớp học này.');
+    }
+
+    const attendance = read_(book, 'Attendance');
+    const already = attendance.rows.some(a => a.sessionId === sessionId && a.studentId === student.studentId);
+    if (already) {
+      throw new Error('Sinh viên ' + studentCode + ' đã được ghi nhận điểm danh trước đó.');
+    }
+
+    let status = 'PRESENT';
+    const now = new Date();
+    const nowIso = now.toISOString();
+
+    const attendanceId = Utilities.getUuid();
+    const newRecord = {
+      attendanceId: attendanceId,
+      sessionId: sessionId,
+      studentId: student.studentId,
+      status: status,
+      checkInTime: nowIso,
+      updatedAt: nowIso,
+      note: 'Self QR Check-in',
+      updatedBy: student.studentCode
+    };
+
+    attendance.sheet.appendRow(SCHEMA.Attendance.map(k => String(newRecord[k] || '')));
+
+    const logs = book.getSheetByName('SyncLogs');
+    if (logs) {
+      logs.appendRow([Utilities.getUuid(), 'studentCheckIn', student.schoolEmail || student.studentCode, nowIso, 'Check-in ' + status + ' for class ' + session.classId]);
+    }
+
+    return {
+      ok: true,
+      status: status,
+      checkInTime: nowIso,
+      studentCode: student.studentCode,
+      fullName: student.fullName
+    };
+  } finally { lock.releaseLock(); }
+}
+
 function handle_(request) {
   const cfg = config_();
   const book = SpreadsheetApp.openById(cfg.id);
@@ -140,9 +325,12 @@ function handle_(request) {
   if (['getRoster', 'importRoster'].includes(request.action)) {
     return handleRoster_(book, cfg, lecturer, request);
   }
+  if (['createSession', 'rotateToken', 'closeSession', 'getSessionAttendance'].includes(request.action)) {
+    return handleSession_(book, cfg, lecturer, request);
+  }
   if (request.action === 'getRows') {
-    if (!['Lecturers', 'Schedules', 'Classes'].includes(request.sheet)) throw new Error('Module này chưa được cấp quyền đọc.');
-    return read_(book, request.sheet).rows.filter(r => r.lecturerId === lecturer.lecturerId);
+    if (!['Lecturers', 'Schedules', 'Classes', 'Sessions', 'Attendance'].includes(request.sheet)) throw new Error('Module này chưa được cấp quyền đọc.');
+    return read_(book, request.sheet).rows.filter(r => r.lecturerId === lecturer.lecturerId || r.createdBy === lecturer.lecturerId);
   }
   if (request.sheet !== 'Schedules' || !['appendRow', 'updateRow', 'deleteRow', 'batchUpdate'].includes(request.action)) {
     throw new Error('Thao tác chưa được hỗ trợ. Không có generic write cho sheet khác.');
@@ -252,7 +440,11 @@ function doPost(e) {
     if (!text || text.length > 200000) throw new Error('Yêu cầu trống hoặc quá lớn.');
     const request = JSON.parse(text);
     if (!request || typeof request !== 'object' || Array.isArray(request)) throw new Error('Yêu cầu không hợp lệ.');
-    result = {ok: true, data: handle_(request)};
+    if (request.action === 'studentCheckIn') {
+      result = {ok: true, data: handleStudentCheckIn_(request)};
+    } else {
+      result = {ok: true, data: handle_(request)};
+    }
   } catch (error) {
     // Do not log tokens, requests or upstream exception details containing URLs.
     const message = String(error.message || 'Yêu cầu thất bại.');
