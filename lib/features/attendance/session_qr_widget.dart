@@ -90,8 +90,11 @@ class _SessionQrDisplayWidgetState extends State<SessionQrDisplayWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final qrData =
-        'https://fap-attendance.web.app/checkin?sessionId=${widget.sessionId}&token=$currentToken';
+    final qrData = Uri.https(
+      'fap-attendance-cba45.web.app',
+      '/checkin',
+      {'sessionId': widget.sessionId, 'token': currentToken},
+    ).toString();
 
     final progress = countdownSeconds / totalSeconds;
 
