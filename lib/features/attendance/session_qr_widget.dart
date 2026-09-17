@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../core/theme/app_palette.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 class SessionQrDisplayWidget extends StatefulWidget {
   final String sessionId;
   final String initialToken;
   final String initialSecretCode;
-  final Future<void> Function(String newToken, String newSecretCode) onRotateToken;
+  final Future<void> Function(String newToken, String newSecretCode)
+  onRotateToken;
 
   const SessionQrDisplayWidget({
     super.key,
@@ -90,11 +92,10 @@ class _SessionQrDisplayWidgetState extends State<SessionQrDisplayWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final qrData = Uri.https(
-      'fap-attendance-cba45.web.app',
-      '/checkin',
-      {'sessionId': widget.sessionId, 'token': currentToken},
-    ).toString();
+    final qrData = Uri.https('fap-attendance-cba45.web.app', '/checkin', {
+      'sessionId': widget.sessionId,
+      'token': currentToken,
+    }).toString();
 
     final progress = countdownSeconds / totalSeconds;
 
@@ -113,10 +114,13 @@ class _SessionQrDisplayWidgetState extends State<SessionQrDisplayWidget> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFE8F5E9),
+                    color: AppPalette.orangeSoft,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.qr_code_scanner, color: Color(0xFF2E7D32)),
+                  child: const Icon(
+                    Icons.qr_code_scanner,
+                    color: AppPalette.orangeDark,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 const Text(
@@ -167,7 +171,7 @@ class _SessionQrDisplayWidgetState extends State<SessionQrDisplayWidget> {
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFFE65100),
+                      color: AppPalette.orangeDark,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -177,7 +181,7 @@ class _SessionQrDisplayWidgetState extends State<SessionQrDisplayWidget> {
                       fontSize: 36,
                       fontWeight: FontWeight.w900,
                       letterSpacing: 6,
-                      color: Color(0xFFD84315),
+                      color: AppPalette.orangeDark,
                     ),
                   ),
                 ],
@@ -197,7 +201,7 @@ class _SessionQrDisplayWidgetState extends State<SessionQrDisplayWidget> {
                       valueColor: AlwaysStoppedAnimation<Color>(
                         countdownSeconds <= 20
                             ? Colors.red
-                            : const Color(0xFF1976D2),
+                            : AppPalette.orangeDark,
                       ),
                     ),
                   ),
@@ -242,7 +246,8 @@ class _SessionQrDisplayWidgetState extends State<SessionQrDisplayWidget> {
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
                             tooltip: isPaused ? 'Tiếp tục' : 'Tạm dừng',
-                            onPressed: () => setState(() => isPaused = !isPaused),
+                            onPressed: () =>
+                                setState(() => isPaused = !isPaused),
                             icon: Icon(
                               isPaused ? Icons.play_arrow : Icons.pause,
                               color: Colors.grey.shade700,
@@ -259,7 +264,9 @@ class _SessionQrDisplayWidgetState extends State<SessionQrDisplayWidget> {
                                 ? const SizedBox(
                                     width: 14,
                                     height: 14,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
                                   )
                                 : const Icon(Icons.refresh, color: Colors.blue),
                           ),

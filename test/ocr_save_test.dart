@@ -56,6 +56,7 @@ Future<void> openImport(WidgetTester tester, TestRepository repo) async {
   await tester.enterText(find.byType(TextField).first, 'NO_MATCH');
   await tester.tap(find.text('Nhập ảnh OCR'));
   await tester.pumpAndSettle();
+  await tester.enterText(find.byType(TextFormField).first, 'FA26');
   await tester.enterText(
     find.byKey(const ValueKey('ocrText')),
     'FA26 PRN232 SE1917 MON Slot 1 07:00-09:15 Room NVH602',
@@ -63,11 +64,12 @@ Future<void> openImport(WidgetTester tester, TestRepository repo) async {
   await tester.pump();
   await tester.tap(find.text('Phân tích lại văn bản'));
   await tester.pumpAndSettle();
-  final name = find.byWidgetPredicate(
-    (w) => w is TextField && w.decoration?.labelText == 'Tên môn',
+  expect(
+    find.byWidgetPredicate(
+      (w) => w is TextField && w.decoration?.labelText == 'Tên môn',
+    ),
+    findsNothing,
   );
-  await tester.ensureVisible(name);
-  await tester.enterText(name, 'Application Development');
   final confirm = find.text(
     'Tôi đã đối chiếu và chỉnh sửa tất cả các dòng trước khi lưu.',
   );
@@ -77,6 +79,45 @@ Future<void> openImport(WidgetTester tester, TestRepository repo) async {
 }
 
 void main() {
+  testWidgets('Semester is required and NVH times are enabled by default', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1400, 1400));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final repo = TestRepository();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: OcrReviewScreen(lecturerId: 'demo-lecturer', repository: repo),
+      ),
+    );
+    expect(
+      tester
+          .widget<CheckboxListTile>(find.byType(CheckboxListTile).first)
+          .value,
+      isTrue,
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('ocrText')),
+      'PRN232 SE1917 MON Slot 1 Room NVH602',
+    );
+    await tester.pump();
+    await tester.tap(find.text('Phân tích lại văn bản'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Vui lòng nhập học kỳ trước khi phân tích.'),
+      findsOneWidget,
+    );
+    expect(find.text('Dòng 1'), findsNothing);
+    await tester.enterText(find.byType(TextFormField).first, 'FA26');
+    await tester.tap(find.text('Phân tích lại văn bản'));
+    await tester.pumpAndSettle();
+    expect(find.text('Dòng 1'), findsOneWidget);
+    final start = find.byWidgetPredicate(
+      (w) => w is TextField && w.decoration?.labelText == 'Giờ bắt đầu (HH:mm)',
+    );
+    expect(tester.widget<TextField>(start).controller!.text, '07:00');
+    expect(repo.saves, 0);
+  });
   testWidgets(
     'Successful save followed by read failure is distinguished from failed save',
     (tester) async {

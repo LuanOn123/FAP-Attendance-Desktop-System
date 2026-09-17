@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../core/theme/app_palette.dart';
 import '../../core/app_config.dart';
 import '../../models/attendance_record.dart';
 import '../../models/class_model.dart';
@@ -56,8 +57,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   Future<void> _fetchAttendanceList() async {
     if (activeSession == null) return;
     try {
-      final records =
-          await widget.repository.getSessionAttendance(activeSession!.sessionId);
+      final records = await widget.repository.getSessionAttendance(
+        activeSession!.sessionId,
+      );
       if (mounted) {
         setState(() {
           attendanceRecords = records;
@@ -154,9 +156,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              e is AppException
-                  ? e.message
-                  : 'Lỗi khi đóng phiên điểm danh.',
+              e is AppException ? e.message : 'Lỗi khi đóng phiên điểm danh.',
             ),
           ),
         );
@@ -200,7 +200,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           children: [
             Row(
               children: [
-                const Icon(Icons.qr_code, size: 32, color: Color(0xFF126B5B)),
+                const Icon(Icons.qr_code, size: 32, color: AppPalette.orange),
                 const SizedBox(width: 12),
                 Text(
                   'Bắt đầu phiên điểm danh',
@@ -247,8 +247,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                       itemCount: widget.schedules.length,
                       itemBuilder: (context, index) {
                         final schedule = widget.schedules[index];
-                        final mapping =
-                            mappingService.map(schedule, widget.classes);
+                        final mapping = mappingService.map(
+                          schedule,
+                          widget.classes,
+                        );
 
                         return Card(
                           margin: const EdgeInsets.only(bottom: 12),
@@ -256,7 +258,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                             borderRadius: BorderRadius.circular(14),
                             side: BorderSide(
                               color: mapping.mappedClass != null
-                                  ? const Color(0xFF126B5B).withValues(alpha: 0.3)
+                                  ? AppPalette.orange.withValues(alpha: 0.3)
                                   : Colors.grey.shade300,
                             ),
                           ),
@@ -268,14 +270,14 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                                   padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(
                                     color: mapping.mappedClass != null
-                                        ? const Color(0xFFE0F2F1)
+                                        ? AppPalette.orangeSoft
                                         : Colors.grey.shade100,
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: Icon(
                                     Icons.school,
                                     color: mapping.mappedClass != null
-                                        ? const Color(0xFF00796B)
+                                        ? AppPalette.orangeDark
                                         : Colors.grey,
                                   ),
                                 ),
@@ -317,7 +319,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                                   children: [
                                     Chip(
                                       visualDensity: VisualDensity.compact,
-                                      backgroundColor: mapping.mappedClass != null
+                                      backgroundColor:
+                                          mapping.mappedClass != null
                                           ? Colors.green.shade50
                                           : Colors.amber.shade50,
                                       side: BorderSide(
@@ -340,7 +343,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                                     ),
                                     const SizedBox(height: 8),
                                     FilledButton.icon(
-                                      onPressed: (mapping.mappedClass == null || isStarting)
+                                      onPressed:
+                                          (mapping.mappedClass == null ||
+                                              isStarting)
                                           ? null
                                           : () => _startSession(schedule),
                                       icon: isStarting
@@ -373,10 +378,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   Widget _buildActiveSessionView() {
     final schedule = selectedSchedule!;
     final session = activeSession!;
-    final presentCount =
-        attendanceRecords.where((r) => r.status == 'PRESENT').length;
-    final lateCount =
-        attendanceRecords.where((r) => r.status == 'LATE').length;
+    final presentCount = attendanceRecords
+        .where((r) => r.status == 'PRESENT')
+        .length;
+    final lateCount = attendanceRecords.where((r) => r.status == 'LATE').length;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -399,22 +404,25 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                             child: Text(
                               '${schedule.subjectCode} · ${schedule.classCode}',
                               overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                              style: Theme.of(context).textTheme.headlineMedium
+                                  ?.copyWith(fontWeight: FontWeight.bold),
                             ),
                           ),
                           const SizedBox(width: 12),
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 4),
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: session.isOpen
                                   ? Colors.green.shade100
                                   : Colors.red.shade100,
                             ),
                             child: Text(
-                              session.isOpen ? 'ĐANG ĐIỂM DANH' : 'ĐÃ ĐÓNG PHIÊN',
+                              session.isOpen
+                                  ? 'ĐANG ĐIỂM DANH'
+                                  : 'ĐÃ ĐÓNG PHIÊN',
                               style: TextStyle(
                                 color: session.isOpen
                                     ? Colors.green.shade900
@@ -429,7 +437,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                       const SizedBox(height: 4),
                       Text(
                         '${schedule.subjectName} · Slot ${schedule.slot} (${schedule.startTime} - ${schedule.endTime}) · Phòng ${schedule.room}',
-                        style: TextStyle(color: Colors.grey.shade700, fontSize: 14),
+                        style: TextStyle(
+                          color: Colors.grey.shade700,
+                          fontSize: 14,
+                        ),
                       ),
                     ],
                   ),
@@ -484,8 +495,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                     initialSecretCode: session.currentSecretCode.isNotEmpty
                         ? session.currentSecretCode
                         : (session.currentToken.contains('#')
-                            ? session.currentToken.split('#').last
-                            : '888999'),
+                              ? session.currentToken.split('#').last
+                              : '888999'),
                     onRotateToken: (newToken, newSecret) async {
                       final expiresAt = DateTime.now()
                           .add(const Duration(seconds: 120))
@@ -711,7 +722,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                     Text(
                       label,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
                     ),
                   ],
                 ),

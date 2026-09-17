@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../../core/theme/app_palette.dart';
 import '../../models/schedule.dart';
 
 class WeeklyTimetable extends StatelessWidget {
@@ -13,16 +14,19 @@ class WeeklyTimetable extends StatelessWidget {
     this.subjectCodes,
   });
   static const palette = [
-    Color(0xFF126B5B),
+    AppPalette.orange,
     Color(0xFF355EC3),
     Color(0xFF8850A5),
     Color(0xFFAC5B24),
     Color(0xFF227B91),
   ];
   Color color(String subject) {
-    final subjects = subjectCodes ?? (schedules.map((s) => s.subjectCode).toSet().toList()..sort());
+    final subjects =
+        subjectCodes ??
+        (schedules.map((s) => s.subjectCode).toSet().toList()..sort());
     return palette[math.max(0, subjects.indexOf(subject)) % palette.length];
   }
+
   @override
   Widget build(BuildContext context) {
     final slots = schedules.map((s) => s.slot).toSet().toList()..sort();
@@ -65,12 +69,14 @@ class WeeklyTimetable extends StatelessWidget {
                   columnWidths: const {0: FixedColumnWidth(72)},
                   defaultVerticalAlignment: TableCellVerticalAlignment.top,
                   border: TableBorder.all(
-                    color: const Color(0xFFE0E6ED),
+                    color: AppPalette.line,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   children: [
                     TableRow(
-                      decoration: const BoxDecoration(color: Color(0xFFEEF3F8)),
+                      decoration: const BoxDecoration(
+                        color: AppPalette.orangeSoft,
+                      ),
                       children: [
                         const Padding(
                           padding: EdgeInsets.symmetric(vertical: 18),
@@ -139,7 +145,7 @@ class WeeklyTimetable extends StatelessWidget {
           fontSize: 12,
           fontWeight: FontWeight.w700,
           color: day == DateTime.now().weekday
-              ? const Color(0xFF126B5B)
+              ? AppPalette.orange
               : const Color(0xFF536174),
         ),
       ),

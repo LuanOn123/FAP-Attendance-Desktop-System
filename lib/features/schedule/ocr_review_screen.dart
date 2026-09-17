@@ -1,12 +1,14 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../../core/theme/app_palette.dart';
 import 'package:uuid/uuid.dart';
 import '../../core/app_config.dart';
 import '../../models/schedule.dart';
 import '../../repositories/schedule_repository.dart';
 import '../../services/ocr_service.dart';
 import '../../services/schedule_parser.dart';
-import 'schedule_editor.dart';
+import 'widgets/schedule_fields.dart';
+import '../../shared/widgets/section_header.dart';
 
 class OcrReviewScreen extends StatefulWidget {
   final String lecturerId;
@@ -29,7 +31,10 @@ class _OcrReviewScreenState extends State<OcrReviewScreen> {
   String? imagePath, message;
   bool busy = false, confirmed = false;
   bool parsed = false;
-  bool useNvhTimes = false;
+  bool useNvhTimes = true;
+  final semesterKey = GlobalKey<FormFieldState<String>>();
+
+  bool validateSemester() => semesterKey.currentState?.validate() ?? false;
   @override
   void dispose() {
     raw.dispose();
@@ -59,6 +64,7 @@ class _OcrReviewScreenState extends State<OcrReviewScreen> {
   }
 
   Future<void> pick() async {
+    if (!validateSemester()) return;
     setState(() {
       busy = true;
       message = null;
@@ -82,6 +88,7 @@ class _OcrReviewScreenState extends State<OcrReviewScreen> {
   }
 
   void parse() {
+    if (!validateSemester()) return;
     setState(() {
       clearRows();
       for (final draft in ScheduleParser().parse(
@@ -92,7 +99,11 @@ class _OcrReviewScreenState extends State<OcrReviewScreen> {
         if (rows.last['semester']!.text.isEmpty) {
           rows.last['semester']!.text = semester.text.trim().toUpperCase();
         }
-        warnings.last = draft.warnings;
+        // Missing fields are visible in the editable form; parser warnings
+        // predate the semester default and would otherwise report stale gaps.
+        warnings.last = draft.warnings
+            .where((warning) => !warning.startsWith('Cần bổ sung:'))
+            .toList();
       }
       parsed = true;
       confirmed = false;
@@ -104,6 +115,7 @@ class _OcrReviewScreenState extends State<OcrReviewScreen> {
 
   Future<void> save() async {
     if (busy || !confirmed || !parsed || rows.isEmpty) return;
+    if (!validateSemester()) return;
     final schedules = <Schedule>[];
     for (var i = 0; i < rows.length; i++) {
       final f = rows[i];
@@ -113,7 +125,9 @@ class _OcrReviewScreenState extends State<OcrReviewScreen> {
         lecturerId: widget.lecturerId,
         semester: value('semester'),
         subjectCode: value('subjectCode'),
-        subjectName: value('subjectName'),
+        subjectName: value('subjectName').isNotEmpty
+            ? value('subjectName')
+            : value('subjectCode').toUpperCase(),
         classCode: value('classCode'),
         dayOfWeek: int.tryParse(value('dayOfWeek')) ?? 0,
         slot: int.tryParse(value('slot')) ?? 0,
@@ -176,10 +190,16 @@ class _OcrReviewScreenState extends State<OcrReviewScreen> {
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [
+          const SectionHeader(
+            eyebrow: 'NHẬP LỊCH DẠY',
+            title: 'Duyệt thời khóa biểu',
+            subtitle: 'Chọn học kỳ, tải ảnh và kiểm tra lịch trước khi lưu.',
+          ),
+          const SizedBox(height: 24),
           const Text(
             '01  CHỌN ẢNH     →     02  OCR / PHÂN TÍCH     →     03  DUYỆT & LƯU',
             style: TextStyle(
-              color: Color(0xFF126B5B),
+              color: AppPalette.orange,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -205,11 +225,22 @@ class _OcrReviewScreenState extends State<OcrReviewScreen> {
               'Slot 1: 07:00–09:15 · 2: 09:30–11:45 · 3: 12:30–14:45 · 4: 15:00–17:15. Bấm Phân tích lại để áp dụng.',
             ),
           ),
-          TextField(
+          TextFormField(
+            key: semesterKey,
             controller: semester,
             enabled: !busy,
+            autovalidateMode: AutovalidateMode.onUserInteraction,
+            validator: (value) => value == null || value.trim().isEmpty
+                ? 'Vui lòng nhập học kỳ trước khi phân tích.'
+                : null,
+            onChanged: (_) => setState(() {
+              parsed = false;
+              confirmed = false;
+            }),
             decoration: const InputDecoration(
-              labelText: 'Học kỳ cho lần phân tích tiếp theo (ví dụ FA26)',
+              labelText: 'Học kỳ cho lần phân tích tiếp theo (ví dụ FA26) *',
+              hintText: 'FA26',
+              prefixIcon: Icon(Icons.school_outlined),
             ),
           ),
           const SizedBox(height: 16),
@@ -229,11 +260,16 @@ class _OcrReviewScreenState extends State<OcrReviewScreen> {
               OutlinedButton(
                 onPressed: busy
                     ? null
-                    : () => setState(() {
-                        addRow();
-                        parsed = true;
-                        confirmed = false;
-                      }),
+                    : () {
+                        if (!validateSemester()) return;
+                        setState(() {
+                          addRow({
+                            'semester': semester.text.trim().toUpperCase(),
+                          });
+                          parsed = true;
+                          confirmed = false;
+                        });
+                      },
                 child: const Text('Thêm dòng'),
               ),
             ],
@@ -321,7 +357,9 @@ class _OcrReviewScreenState extends State<OcrReviewScreen> {
                         spacing: 12,
                         runSpacing: 16,
                         children: [
-                          for (final entry in scheduleLabels.entries)
+                          for (final entry in scheduleLabels.entries.where(
+                            (e) => e.key != 'subjectName',
+                          ))
                             SizedBox(
                               width: 230,
                               child: TextField(

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import '../../core/theme/app_palette.dart';
 import '../../core/app_config.dart';
 import 'auth_controller.dart';
+import '../../shared/widgets/section_header.dart';
 
 class LoginScreen extends StatefulWidget {
   final AuthController auth;
@@ -17,17 +19,23 @@ class _LoginScreenState extends State<LoginScreen> {
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(32),
         child: SizedBox(
-          width: 480,
+          width: 540,
           child: Card(
             child: Padding(
               padding: const EdgeInsets.all(36),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  const SectionHeader(
+                    eyebrow: 'FAP • GIẢNG VIÊN',
+                    title: 'Xin chào, thầy cô.',
+                    subtitle: 'Lịch dạy rõ ràng. Điểm danh nhẹ nhàng.',
+                  ),
+                  const SizedBox(height: 28),
                   const Icon(
                     Icons.fact_check_outlined,
                     size: 54,
-                    color: Color(0xFF126B5B),
+                    color: AppPalette.orange,
                   ),
                   const SizedBox(height: 22),
                   Text(
@@ -46,9 +54,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    'Sử dụng email trường đã có trong danh sách Lecturers.\nDomain: ${AppConfig.domainList}',
-                  ),
+                  Text('Sử dụng tài khoản email trường để tiếp tục.'),
                   CheckboxListTile(
                     contentPadding: EdgeInsets.zero,
                     value: remember,

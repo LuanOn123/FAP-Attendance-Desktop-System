@@ -187,13 +187,17 @@ class _RosterImportScreenState extends State<RosterImportScreen> {
   List<ClassTarget> get availableTargets {
     final list = <ClassTarget>[...candidates];
     if (list.isEmpty) {
-      final semMatches = widget.targets.where((t) => t.semester == semester).toList();
+      final semMatches = widget.targets
+          .where((t) => t.semester == semester)
+          .toList();
       list.addAll(semMatches.isNotEmpty ? semMatches : widget.targets);
     }
     if (classCode != null &&
         classCode!.isNotEmpty &&
         !list.any((t) => t.classCode == classCode)) {
-      final sub = sheet?.subjectHint.isNotEmpty == true ? sheet!.subjectHint : 'GENERAL';
+      final sub = sheet?.subjectHint.isNotEmpty == true
+          ? sheet!.subjectHint
+          : 'GENERAL';
       final sem = semester ?? 'FA26';
       final synthesized = ClassTarget(
         semester: sem,
@@ -248,8 +252,8 @@ class _RosterImportScreenState extends State<RosterImportScreen> {
         semester = semesters.contains(loaded!.semesterHint)
             ? loaded.semesterHint
             : (semesters.length == 1
-                ? semesters.single
-                : (semesters.isNotEmpty ? semesters.first : null));
+                  ? semesters.single
+                  : (semesters.isNotEmpty ? semesters.first : null));
         final initial = widget.targets
             .where((t) => t.key == widget.initialKey)
             .firstOrNull;
@@ -302,14 +306,19 @@ class _RosterImportScreenState extends State<RosterImportScreen> {
     });
     try {
       final mappedRows = rows
-          .map((s) => RosterStudent(
-                classCode: destination.classCode,
-                studentCode: s.studentCode,
-                fullName: s.fullName,
-                email: s.email,
-              ))
+          .map(
+            (s) => RosterStudent(
+              classCode: destination.classCode,
+              studentCode: s.studentCode,
+              fullName: s.fullName,
+              email: s.email,
+            ),
+          )
           .toList();
-      final result = await widget.repository.importRoster(destination, mappedRows);
+      final result = await widget.repository.importRoster(
+        destination,
+        mappedRows,
+      );
       if (!mounted) return;
       final messenger = ScaffoldMessenger.of(context);
       Navigator.pop(context, destination);

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/theme/app_palette.dart';
 import '../../core/app_config.dart';
 import '../../models/class_model.dart';
 import '../../models/lecturer.dart';
@@ -6,6 +7,7 @@ import '../../models/schedule.dart';
 import '../../repositories/schedule_repository.dart';
 import '../../services/class_mapping_service.dart';
 import '../../shared/module_placeholder.dart';
+import '../../shared/widgets/section_header.dart';
 import 'ocr_review_screen.dart';
 import 'schedule_editor.dart';
 import 'weekly_timetable.dart';
@@ -39,10 +41,11 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   String query = '';
   late final AttendanceRepository _attendanceRepo =
       widget.attendanceRepository ??
-          (widget.repository is SheetScheduleRepository
-              ? SheetAttendanceRepository(
-                  (widget.repository as SheetScheduleRepository).sheets)
-              : DemoAttendanceRepository());
+      (widget.repository is SheetScheduleRepository
+          ? SheetAttendanceRepository(
+              (widget.repository as SheetScheduleRepository).sheets,
+            )
+          : DemoAttendanceRepository());
   int destination = 0;
   bool weekly = true;
   String? semesterFilter;
@@ -215,6 +218,16 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     body: Row(
       children: [
         NavigationRail(
+          minWidth: 104,
+          groupAlignment: -0.85,
+          leading: const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: CircleAvatar(
+              backgroundColor: AppPalette.orange,
+              foregroundColor: Colors.white,
+              child: Icon(Icons.school_outlined),
+            ),
+          ),
           selectedIndex: destination,
           onDestinationSelected: (value) => setState(() => destination = value),
           labelType: NavigationRailLabelType.all,
@@ -319,14 +332,12 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     return ListView(
       padding: const EdgeInsets.all(28),
       children: [
-        Text(
-          'Thời khóa biểu',
-          style: Theme.of(
-            context,
-          ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700),
+        const SectionHeader(
+          eyebrow: 'KHÔNG GIAN GIẢNG DẠY',
+          title: 'Thời khóa biểu',
+          subtitle:
+              'Sẵn sàng cho một ngày giảng dạy hiệu quả. Quản lý lịch và kết nối lớp học tại đây.',
         ),
-        const SizedBox(height: 8),
-        const Text('Quản lý lịch dạy, duyệt dữ liệu OCR và kết nối lớp học.'),
         const SizedBox(height: 24),
         Wrap(
           spacing: 16,
@@ -428,8 +439,12 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
             ),
           ),
         if (weekly && visible.isNotEmpty)
-          WeeklyTimetable(schedules: visible, onSelect: showLesson,
-            subjectCodes: schedules.map((s) => s.subjectCode).toSet().toList()..sort()),
+          WeeklyTimetable(
+            schedules: visible,
+            onSelect: showLesson,
+            subjectCodes: schedules.map((s) => s.subjectCode).toSet().toList()
+              ..sort(),
+          ),
         if (!weekly)
           for (final s in visible)
             Padding(
@@ -554,7 +569,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         padding: const EdgeInsets.all(20),
         child: Row(
           children: [
-            Icon(icon, color: const Color(0xFF126B5B)),
+            Icon(icon, color: AppPalette.orange),
             const SizedBox(width: 16),
             Expanded(
               child: Column(

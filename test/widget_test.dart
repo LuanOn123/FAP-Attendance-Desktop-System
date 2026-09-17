@@ -66,6 +66,7 @@ void main() {
           home: OcrReviewScreen(lecturerId: 'demo-lecturer', repository: repo),
         ),
       );
+      await tester.enterText(find.byType(TextFormField).first, 'FA26');
       await tester.enterText(
         find.byKey(const ValueKey('ocrText')),
         'FA26 PRM393 SE1848 Thu 2 Slot 1 07:30-09:00 Room AL-201',

@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fap_attendance/core/app_theme.dart';
 import 'package:fap_attendance/features/schedule/schedule_screen.dart';
+import 'package:fap_attendance/features/schedule/ocr_review_screen.dart';
 import 'package:fap_attendance/features/classes/classes_screen.dart';
 import 'package:fap_attendance/models/lecturer.dart';
 import 'package:fap_attendance/models/schedule.dart';
@@ -58,7 +59,18 @@ void main() {
     if (capture) {
       await tester.runAsync(() async {
         final bytes = File('C:/Windows/Fonts/segoeui.ttf').readAsBytesSync();
-        await (FontLoader('ReviewFont')..addFont(Future.value(ByteData.sublistView(bytes)))).load();
+        await (FontLoader(
+          'Segoe UI',
+        )..addFont(Future.value(ByteData.sublistView(bytes)))).load();
+        final icons = File(
+          'D:/development/flutter/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
+        ).readAsBytesSync();
+        await (FontLoader(
+          'MaterialIcons',
+        )..addFont(Future.value(ByteData.sublistView(icons)))).load();
+        await (FontLoader(
+          'ReviewFont',
+        )..addFont(Future.value(ByteData.sublistView(bytes)))).load();
       });
     }
     final boundary = GlobalKey();
@@ -67,6 +79,7 @@ void main() {
       RepaintBoundary(
         key: boundary,
         child: MaterialApp(
+          debugShowCheckedModeBanner: false,
           theme: buildTheme().copyWith(
             textTheme: buildTheme().textTheme.apply(
               fontFamily: capture ? 'ReviewFont' : null,
@@ -119,6 +132,7 @@ void main() {
       RepaintBoundary(
         key: boundary,
         child: MaterialApp(
+          debugShowCheckedModeBanner: false,
           theme: buildTheme().copyWith(
             textTheme: buildTheme().textTheme.apply(
               fontFamily: capture ? 'ReviewFont' : null,
@@ -146,5 +160,26 @@ void main() {
     expect(find.text('35 sinh viên thuộc SE1848'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await snapshot('import-preview');
+    await tester.pumpWidget(
+      RepaintBoundary(
+        key: boundary,
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: buildTheme(),
+          home: OcrReviewScreen(lecturerId: 'demo-lecturer', repository: repo),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField).first, 'FA26');
+    await tester.enterText(
+      find.byKey(const ValueKey('ocrText')),
+      'PRM393 SE1917 MON Slot 1 Room NVH602',
+    );
+    await tester.pump();
+    await tester.tap(find.text('Phân tích lại văn bản'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    await snapshot('ocr-review');
   });
 }
