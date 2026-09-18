@@ -97,6 +97,8 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
     }
   }
 
+  final Map<String, List<SessionModel>> _sessionsCache = {};
+  final Map<String, List<RosterStudent>> _rosterCache = {};
   final Map<String, List<AttendanceRecord>> _attendanceCache = {};
 
   @override
@@ -109,69 +111,71 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
     }
   }
 
-  Future<void> _loadAttendance() async {
+  Future<void> _loadAttendance({bool forceRefresh = false}) async {
     if (_selectedClass == null) return;
+    if (forceRefresh) {
+      _sessionsCache.clear();
+      _rosterCache.clear();
+      _attendanceCache.clear();
+    }
+
     setState(() {
       _loading = true;
       _sessions = [];
       _roster = [];
       _records = [];
       _error = null;
-      _attendanceCache.clear();
     });
+
     try {
       final cls = _selectedClass!;
-      final classId = cls.classId.trim();
-      final key = cls.key.trim();
-      final classCode = cls.classCode.trim();
-      final subjectCode = cls.subjectCode.trim();
+      final unifiedClassId =
+          cls.classId.trim().isNotEmpty && cls.classId.trim() != 'null'
+              ? cls.classId.trim()
+              : cls.key.trim();
 
-      // 1. Tải danh sách các phiên học của lớp (truy vấn toàn bộ các mã định danh có thể có)
-      final Set<String> sessionIds = {};
-      final List<SessionModel> sessions = [];
+      // Chạy song song truy vấn phiên học và danh sách sinh viên qua Future.wait
+      final results = await Future.wait<dynamic>([
+        _sessionsCache.containsKey(unifiedClassId)
+            ? Future.value(_sessionsCache[unifiedClassId]!)
+            : widget.attendanceRepository
+                .getSessionsByClass(unifiedClassId)
+                .then((list) {
+                  _sessionsCache[unifiedClassId] = list;
+                  return list;
+                }),
+        _rosterCache.containsKey(cls.key)
+            ? Future.value(_rosterCache[cls.key]!)
+            : (widget.scheduleRepository != null
+                ? widget.scheduleRepository!
+                    .getRoster(
+                      ClassTarget(
+                        semester: cls.semester,
+                        subjectCode: cls.subjectCode,
+                        classCode: cls.classCode,
+                        classId: cls.classId,
+                      ),
+                    )
+                    .then((list) {
+                      _rosterCache[cls.key] = list;
+                      return list;
+                    })
+                    .catchError((_) => <RosterStudent>[])
+                : Future.value(<RosterStudent>[])),
+      ]);
 
-      final targetsToTry = {
-        if (classId.isNotEmpty && classId != 'null') classId,
-        if (key.isNotEmpty) key,
-        if (classCode.isNotEmpty) classCode,
-        if (subjectCode.isNotEmpty && classCode.isNotEmpty)
-          '$subjectCode-$classCode',
-        if (subjectCode.isNotEmpty && classCode.isNotEmpty)
-          '${subjectCode}_$classCode',
-        if (subjectCode.isNotEmpty && classCode.isNotEmpty)
-          '$subjectCode - $classCode',
-      };
-
-      for (final target in targetsToTry) {
-        try {
-          final list = await widget.attendanceRepository.getSessionsByClass(
-            target,
-          );
-          for (final s in list) {
-            if (sessionIds.add(s.sessionId)) sessions.add(s);
-          }
-        } catch (_) {}
-      }
+      final List<SessionModel> sessions = List<SessionModel>.from(
+        results[0] as List,
+      );
+      final List<RosterStudent> roster = List<RosterStudent>.from(
+        results[1] as List,
+      );
 
       sessions.sort((a, b) {
         final dateCmp = b.date.compareTo(a.date);
         if (dateCmp != 0) return dateCmp;
         return b.slot.compareTo(a.slot);
       });
-
-      // 2. Tải danh sách sinh viên theo lớp nếu có scheduleRepository
-      List<RosterStudent> roster = [];
-      if (widget.scheduleRepository != null) {
-        try {
-          final target = ClassTarget(
-            semester: cls.semester,
-            subjectCode: cls.subjectCode,
-            classCode: cls.classCode,
-            classId: cls.classId,
-          );
-          roster = await widget.scheduleRepository!.getRoster(target);
-        } catch (_) {}
-      }
 
       if (mounted) {
         setState(() {
@@ -761,7 +765,7 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
 
                 IconButton(
                   tooltip: 'Tải lại danh sách điểm danh mới nhất',
-                  onPressed: _loadAttendance,
+                  onPressed: () => _loadAttendance(forceRefresh: true),
                   icon: const Icon(Icons.refresh, size: 20),
                 ),
               ],
