@@ -77,10 +77,21 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
     final slotStr = parts.length > 1 ? parts[1] : '';
     try {
       final dt = DateTime.parse(dateStr);
+      final weekday = switch (dt.weekday) {
+        DateTime.monday => 'Thứ 2',
+        DateTime.tuesday => 'Thứ 3',
+        DateTime.wednesday => 'Thứ 4',
+        DateTime.thursday => 'Thứ 5',
+        DateTime.friday => 'Thứ 6',
+        DateTime.saturday => 'Thứ 7',
+        DateTime.sunday => 'Chủ Nhật',
+        _ => '',
+      };
       final d = dt.day.toString().padLeft(2, '0');
       final m = dt.month.toString().padLeft(2, '0');
       final y = dt.year.toString();
-      return '$d/$m/$y (Slot $slotStr)';
+      final dayPrefix = weekday.isNotEmpty ? '$weekday - ' : '';
+      return '$dayPrefix$d/$m/$y (Slot $slotStr)';
     } catch (_) {
       return '$dateStr (Slot $slotStr)';
     }
@@ -704,7 +715,7 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
                 // 2. Buổi điểm danh (Ngày + Slot) picker
                 if (dateOpts.isNotEmpty)
                   SizedBox(
-                    width: 260,
+                    width: 300,
                     child: DropdownButtonFormField<String>(
                       key: ValueKey(
                         'date_${_selectedDateOption}_${dateOpts.length}',
