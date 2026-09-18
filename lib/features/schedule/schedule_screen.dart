@@ -6,7 +6,6 @@ import '../../models/lecturer.dart';
 import '../../models/schedule.dart';
 import '../../repositories/schedule_repository.dart';
 import '../../services/class_mapping_service.dart';
-import '../../shared/module_placeholder.dart';
 import '../../shared/widgets/section_header.dart';
 import 'ocr_review_screen.dart';
 import 'schedule_editor.dart';
@@ -14,6 +13,7 @@ import 'weekly_timetable.dart';
 import '../classes/classes_screen.dart';
 import '../attendance/attendance_screen.dart';
 import '../../repositories/attendance_repository.dart';
+import '../reports/attendance_report_screen.dart';
 
 class ScheduleScreen extends StatefulWidget {
   final Lecturer lecturer;
@@ -271,11 +271,12 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
               classes: classes,
               repository: _attendanceRepo,
             ),
-            3 => const ModulePlaceholder(
-              title: 'Theo dõi & báo cáo',
-              owner: 'Member 4',
-              description:
-                  'Điểm tích hợp điểm danh trực tiếp, lịch sử, báo cáo và xuất Excel FAP.',
+            3 => AttendanceReportScreen(
+              lecturer: widget.lecturer,
+              classes: classes,
+              schedules: schedules,
+              attendanceRepository: _attendanceRepo,
+              scheduleRepository: widget.repository,
             ),
             _ => profile(),
           },

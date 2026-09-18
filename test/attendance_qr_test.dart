@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fap_attendance/features/attendance/attendance_screen.dart';
-import 'package:fap_attendance/features/attendance/session_qr_widget.dart';
-import 'package:fap_attendance/features/attendance/student_checkin_screen.dart';
 import 'package:fap_attendance/features/schedule/schedule_screen.dart';
 import 'package:fap_attendance/models/class_model.dart';
 import 'package:fap_attendance/models/lecturer.dart';
@@ -110,6 +108,7 @@ void main() {
       );
       expect(secretFinder, findsOneWidget);
       final initialSecret = (tester.widget(secretFinder) as Text).data!;
+      expect(initialSecret.length, equals(6));
 
       // Verify timer countdown is displayed
       expect(find.textContaining('Đổi mã sau:'), findsOneWidget);

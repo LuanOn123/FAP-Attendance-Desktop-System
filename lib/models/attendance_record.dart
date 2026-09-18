@@ -38,6 +38,32 @@ class AttendanceRecord {
     );
   }
 
+  bool get isPresent => status == 'PRESENT';
+  bool get isLate => status == 'LATE';
+  bool get isAbsent => status == 'ABSENT';
+
+  AttendanceRecord copyWith({
+    String? status,
+    String? note,
+    String? updatedAt,
+    String? updatedBy,
+    String? fullName,
+    String? studentCode,
+  }) {
+    return AttendanceRecord(
+      attendanceId: attendanceId,
+      sessionId: sessionId,
+      studentId: studentId,
+      studentCode: studentCode ?? this.studentCode,
+      fullName: fullName ?? this.fullName,
+      status: status ?? this.status,
+      checkInTime: checkInTime,
+      updatedAt: updatedAt ?? this.updatedAt,
+      note: note ?? this.note,
+      updatedBy: updatedBy ?? this.updatedBy,
+    );
+  }
+
   Map<String, dynamic> toJson() => {
     'attendanceId': attendanceId,
     'sessionId': sessionId,

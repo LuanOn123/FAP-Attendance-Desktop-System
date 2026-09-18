@@ -221,6 +221,101 @@ function handleSession_(book, cfg, lecturer, request) {
       });
     }
 
+    if (request.action === 'getSessionsByClass') {
+      const targetId = String(request.classId || '').trim().toUpperCase();
+      if (!targetId) return [];
+      return sessions.rows.filter(r => {
+        const rowClassId = String(r.classId || '').trim().toUpperCase();
+        if (!rowClassId) return false;
+        const matchesLecturer = (r.createdBy === lecturer.lecturerId || !r.createdBy);
+        const matchesClass = (rowClassId === targetId || rowClassId.includes(targetId) || targetId.includes(rowClassId));
+        return matchesLecturer && matchesClass;
+      });
+    }
+
+    if (request.action === 'getClassHistory') {
+      const classId = String(request.classId || '').trim();
+      const classSessions = sessions.rows.filter(r => r.classId === classId);
+      const sessionIds = new Set(classSessions.map(s => s.sessionId));
+      const attendance = read_(book, 'Attendance').rows.filter(r => sessionIds.has(r.sessionId));
+      const students = read_(book, 'Students').rows;
+      const studentMap = new Map(students.map(s => [s.studentId, s]));
+      return attendance.map(a => {
+        const student = studentMap.get(a.studentId);
+        return {
+          ...a,
+          studentCode: student ? student.studentCode : '',
+          fullName: student ? student.fullName : ''
+        };
+      });
+    }
+
+    if (request.action === 'getLecturerClasses') {
+      const lecturerId = String(request.lecturerId || lecturer.lecturerId).trim();
+      return read_(book, 'Classes').rows.filter(r => r.lecturerId === lecturerId);
+    }
+
+    if (request.action === 'updateAttendance') {
+      const attendanceId = String(request.attendanceId || '').trim();
+      const status = String(request.status || '').trim().toUpperCase();
+      const note = String(request.note || '').trim();
+      const updatedBy = String(request.updatedBy || lecturer.email).trim();
+      const nowIso = new Date().toISOString();
+
+      const attendance = read_(book, 'Attendance');
+      const index = attendance.rows.findIndex(r => r.attendanceId === attendanceId);
+      if (index === -1) throw new Error('Không tìm thấy bản ghi điểm danh.');
+
+      const rowIndex = index + 2;
+      const statusCol = SCHEMA.Attendance.indexOf('status') + 1;
+      const noteCol = SCHEMA.Attendance.indexOf('note') + 1;
+      const timeCol = SCHEMA.Attendance.indexOf('updatedAt') + 1;
+      const byCol = SCHEMA.Attendance.indexOf('updatedBy') + 1;
+
+      attendance.sheet.getRange(rowIndex, statusCol).setValue(status);
+      attendance.sheet.getRange(rowIndex, noteCol).setValue(note);
+      attendance.sheet.getRange(rowIndex, timeCol).setValue(nowIso);
+      attendance.sheet.getRange(rowIndex, byCol).setValue(updatedBy);
+      return {saved: true};
+    }
+
+    if (request.action === 'markAbsent') {
+      const sessionId = String(request.sessionId || '').trim();
+      const studentCodes = Array.isArray(request.studentCodes) ? request.studentCodes : [];
+      const markedBy = String(request.markedBy || lecturer.email).trim();
+      const nowIso = new Date().toISOString();
+
+      const attendance = read_(book, 'Attendance');
+      const students = read_(book, 'Students').rows;
+      const studentMap = new Map(students.map(s => [s.studentCode, s]));
+
+      const newRows = [];
+      studentCodes.forEach(code => {
+        const student = studentMap.get(code);
+        if (student) {
+          const already = attendance.rows.some(a => a.sessionId === sessionId && a.studentId === student.studentId);
+          if (!already) {
+            const newRecord = {
+              attendanceId: Utilities.getUuid(),
+              sessionId: sessionId,
+              studentId: student.studentId,
+              status: 'ABSENT',
+              checkInTime: '',
+              updatedAt: nowIso,
+              note: 'Chốt vắng tự động khi kết thúc phiên',
+              updatedBy: markedBy
+            };
+            newRows.push(SCHEMA.Attendance.map(k => String(newRecord[k] || '')));
+          }
+        }
+      });
+
+      if (newRows.length > 0) {
+        attendance.sheet.getRange(attendance.sheet.getLastRow() + 1, 1, newRows.length, SCHEMA.Attendance.length).setValues(newRows);
+      }
+      return {saved: true, count: newRows.length};
+    }
+
     throw new Error('Thao tác session chưa được hỗ trợ.');
   } finally { lock.releaseLock(); }
 }
@@ -325,7 +420,7 @@ function handle_(request) {
   if (['getRoster', 'importRoster'].includes(request.action)) {
     return handleRoster_(book, cfg, lecturer, request);
   }
-  if (['createSession', 'rotateToken', 'closeSession', 'getSessionAttendance'].includes(request.action)) {
+  if (['createSession', 'rotateToken', 'closeSession', 'getSessionAttendance', 'getSessionsByClass', 'getClassHistory', 'updateAttendance', 'markAbsent', 'getLecturerClasses'].includes(request.action)) {
     return handleSession_(book, cfg, lecturer, request);
   }
   if (request.action === 'getRows') {

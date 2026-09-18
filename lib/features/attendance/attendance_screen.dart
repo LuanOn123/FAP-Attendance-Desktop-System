@@ -83,9 +83,15 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       errorMessage = null;
     });
 
+    final mappedClass = mapping.mappedClass!;
+    final classIdToUse =
+        mappedClass.classId.trim().isNotEmpty && mappedClass.classId.trim() != 'null'
+            ? mappedClass.classId.trim()
+            : mappedClass.key;
+
     try {
       final session = await widget.repository.startSession(
-        classId: mapping.mappedClass!.classId,
+        classId: classIdToUse,
         slot: schedule.slot,
         startTime: schedule.startTime,
         endTime: schedule.endTime,

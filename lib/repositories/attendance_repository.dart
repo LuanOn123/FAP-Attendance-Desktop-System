@@ -3,6 +3,7 @@ import '../core/app_config.dart';
 import '../models/attendance_record.dart';
 import '../models/session_model.dart';
 import '../services/google_sheet_service.dart';
+import '../models/class_model.dart';
 
 abstract class AttendanceRepository {
   Future<SessionModel> startSession({
@@ -32,6 +33,30 @@ abstract class AttendanceRepository {
     required String fullName,
     required String email,
   });
+
+  /// Member 4: Cập nhật trạng thái điểm danh thủ công
+  Future<void> updateAttendanceStatus({
+    required String attendanceId,
+    required String status,
+    required String note,
+    required String updatedBy,
+  });
+
+  /// Member 4: Đánh dấu ABSENT cho sinh viên chưa điểm danh khi chốt phiên
+  Future<void> markAbsent({
+    required String sessionId,
+    required List<String> studentCodes,
+    required String lecturerEmail,
+  });
+
+  /// Member 4: Lấy toàn bộ lịch sử điểm danh của một lớp
+  Future<List<AttendanceRecord>> getClassHistory(String classId);
+
+  /// Member 4: Lấy danh sách session của một lớp
+  Future<List<SessionModel>> getSessionsByClass(String classId);
+
+  /// Member 4: Lấy danh sách lớp của giảng viên (dùng trong report)
+  Future<List<ClassModel>> getLecturerClasses(String lecturerId);
 }
 
 class SheetAttendanceRepository implements AttendanceRepository {
@@ -119,6 +144,92 @@ class SheetAttendanceRepository implements AttendanceRepository {
       'checkInTime': DateTime.now().toIso8601String(),
     });
     return Map<String, dynamic>.from(result as Map);
+  }
+
+  @override
+  Future<void> updateAttendanceStatus({
+    required String attendanceId,
+    required String status,
+    required String note,
+    required String updatedBy,
+  }) async {
+    await sheets.request('updateAttendance', {
+      'attendanceId': attendanceId,
+      'status': status,
+      'note': note,
+      'updatedBy': updatedBy,
+      'updatedAt': DateTime.now().toIso8601String(),
+    });
+  }
+
+  @override
+  Future<void> markAbsent({
+    required String sessionId,
+    required List<String> studentCodes,
+    required String lecturerEmail,
+  }) async {
+    await sheets.request('markAbsent', {
+      'sessionId': sessionId,
+      'studentCodes': studentCodes,
+      'markedBy': lecturerEmail,
+      'markedAt': DateTime.now().toIso8601String(),
+    });
+  }
+
+  @override
+  Future<List<AttendanceRecord>> getClassHistory(String classId) async {
+    try {
+      final sessions = await getSessionsByClass(classId);
+      final results = await Future.wait(
+        sessions.map((s) => getSessionAttendance(s.sessionId).catchError((_) => <AttendanceRecord>[])),
+      );
+      return results.expand((list) => list).toList();
+    } catch (_) {
+      final result = await sheets.request('getClassHistory', {'classId': classId});
+      return (result as List)
+          .map((item) => AttendanceRecord.fromJson(Map<String, dynamic>.from(item as Map)))
+          .toList();
+    }
+  }
+
+  @override
+  Future<List<SessionModel>> getSessionsByClass(String classId) async {
+    final targetId = classId.trim().toUpperCase();
+    if (targetId.isEmpty) return [];
+    try {
+      final rows = await sheets.getRows('Sessions');
+      return rows
+          .where((r) {
+            final rowClassId = (r['classId']?.toString() ?? '').trim().toUpperCase();
+            if (rowClassId.isEmpty) return false;
+            return rowClassId == targetId ||
+                rowClassId.contains(targetId) ||
+                targetId.contains(rowClassId);
+          })
+          .map((r) => SessionModel.fromJson(r))
+          .toList();
+    } catch (_) {
+      final result = await sheets.request('getSessionsByClass', {'classId': targetId});
+      return (result as List)
+          .map((item) => SessionModel.fromJson(Map<String, dynamic>.from(item as Map)))
+          .toList();
+    }
+  }
+
+  @override
+  Future<List<ClassModel>> getLecturerClasses(String lecturerId) async {
+    try {
+      final rows = await sheets.getRows('Classes');
+      return rows
+          .where((r) => r['lecturerId']?.toString() == lecturerId)
+          .map((r) => ClassModel.fromJson(r))
+          .toList();
+    } catch (_) {
+      final result = await sheets.request('getLecturerClasses', {'lecturerId': lecturerId});
+      return (result as List)
+          .map((item) => ClassModel.fromJson(Map<String, dynamic>.from(item as Map)))
+          .toList();
+    }
   }
 }
 
@@ -217,7 +328,6 @@ class DemoAttendanceRepository implements AttendanceRepository {
       throw const AppException('Sinh viên đã điểm danh trong ca học này.');
     }
 
-    // Calculate status (Present within first 15 mins, otherwise Late)
     final now = DateTime.now();
     final record = AttendanceRecord(
       attendanceId: 'att-${now.millisecondsSinceEpoch}',
@@ -239,5 +349,82 @@ class DemoAttendanceRepository implements AttendanceRepository {
       'studentCode': record.studentCode,
       'fullName': record.fullName,
     };
+  }
+
+  @override
+  Future<void> updateAttendanceStatus({
+    required String attendanceId,
+    required String status,
+    required String note,
+    required String updatedBy,
+  }) async {
+    final idx = _attendanceRecords.indexWhere((r) => r.attendanceId == attendanceId);
+    if (idx == -1) throw const AppException('Bản ghi điểm danh không tồn tại.');
+    _attendanceRecords[idx] = _attendanceRecords[idx].copyWith(
+      status: status,
+      note: note,
+      updatedBy: updatedBy,
+      updatedAt: DateTime.now().toIso8601String(),
+    );
+  }
+
+  @override
+  Future<void> markAbsent({
+    required String sessionId,
+    required List<String> studentCodes,
+    required String lecturerEmail,
+  }) async {
+    final now = DateTime.now();
+    for (final code in studentCodes) {
+      _attendanceRecords.add(AttendanceRecord(
+        attendanceId: 'absent-${now.millisecondsSinceEpoch}-$code',
+        sessionId: sessionId,
+        studentId: 'std-$code',
+        studentCode: code,
+        fullName: 'Sinh viên $code',
+        status: 'ABSENT',
+        checkInTime: '',
+        updatedAt: now.toIso8601String(),
+        note: 'Tự động đánh vắng khi chốt phiên',
+        updatedBy: lecturerEmail,
+      ));
+    }
+  }
+
+  @override
+  Future<List<AttendanceRecord>> getClassHistory(String classId) async {
+    final sessionIds = _sessions.values
+        .where((s) => s.classId == classId)
+        .map((s) => s.sessionId)
+        .toSet();
+    return _attendanceRecords.where((r) => sessionIds.contains(r.sessionId)).toList();
+  }
+
+  @override
+  Future<List<SessionModel>> getSessionsByClass(String classId) async {
+    final targetId = classId.trim();
+    if (targetId.isEmpty) return [];
+    return _sessions.values.where((s) => s.classId == targetId).toList();
+  }
+
+  @override
+  Future<List<ClassModel>> getLecturerClasses(String lecturerId) async {
+    // Demo: trả về danh sách lớp mẫu
+    return [
+      const ClassModel(
+        classId: 'demo-cls-001',
+        semester: 'FA26',
+        subjectCode: 'PRM393',
+        classCode: 'SE1848',
+        lecturerId: 'lec-001',
+      ),
+      const ClassModel(
+        classId: 'demo-cls-002',
+        semester: 'FA26',
+        subjectCode: 'SWE201',
+        classCode: 'SE1901',
+        lecturerId: 'lec-001',
+      ),
+    ];
   }
 }
