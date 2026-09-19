@@ -14,17 +14,22 @@ import '../classes/classes_screen.dart';
 import '../attendance/attendance_screen.dart';
 import '../../repositories/attendance_repository.dart';
 import '../reports/attendance_report_screen.dart';
+import '../../services/integration_server.dart';
+import '../../models/fap_import_dto.dart';
+import 'dart:async';
 
 class ScheduleScreen extends StatefulWidget {
   final Lecturer lecturer;
   final ScheduleRepository repository;
   final AttendanceRepository? attendanceRepository;
+  final IntegrationServer? integrationServer;
   final Future<void> Function() onLogout;
   const ScheduleScreen({
     super.key,
     required this.lecturer,
     required this.repository,
     this.attendanceRepository,
+    this.integrationServer,
     required this.onLogout,
   });
   @override
@@ -49,14 +54,59 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   int destination = 0;
   bool weekly = true;
   String? semesterFilter;
+  StreamSubscription? _importSub;
+  late final _integration = widget.integrationServer ?? IntegrationServer();
+  FapImportResult? _latestImport;
+  final Map<String, String> _importDates = {};
+  bool _attendanceVisited = false;
+  int _importRevision = 0;
+  String? _bridgeError;
+  String? _reportClassKey;
+  String? _reportDateOption;
   @override
   void initState() {
     super.initState();
     load();
+    _integration.start(widget.repository, widget.lecturer.lecturerId).catchError((
+      Object e,
+    ) {
+      if (mounted) {
+        setState(
+          () => _bridgeError =
+              'Không mở được kết nối extension ở cổng 8765. Đóng bản app khác và đăng nhập lại.',
+        );
+      }
+    });
+    _importSub = _integration.onImportComplete.listen((
+      FapImportResult result,
+    ) async {
+      if (!mounted) return;
+      setState(() {
+        _latestImport = result;
+        _reportClassKey = result.schedule.key;
+        _reportDateOption = '${result.date}|${result.schedule.slot}';
+        _importRevision++;
+        _importDates[result.schedule.scheduleId] = result.date;
+        _attendanceVisited = true;
+        destination = 2;
+      });
+      await load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Đã nhận ${result.studentCount} sinh viên · ${result.schedule.classCode}. Buổi vừa nhập được đánh dấu Hiện tại.',
+            ),
+          ),
+        );
+      }
+    });
   }
 
   @override
   void dispose() {
+    _importSub?.cancel();
+    unawaited(_integration.stop());
     search.dispose();
     super.dispose();
   }
@@ -203,6 +253,17 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         style: TextStyle(fontWeight: FontWeight.w700),
       ),
       actions: [
+        Tooltip(
+          message:
+              _bridgeError ??
+              'Extension kết nối qua 127.0.0.1:8765 khi đã đăng nhập.',
+          child: Icon(
+            _bridgeError == null
+                ? Icons.extension_outlined
+                : Icons.error_outline,
+            color: _bridgeError == null ? Colors.green : Colors.red,
+          ),
+        ),
         if (AppConfig.demo) const Chip(label: Text('DEMO • Không lưu lâu dài')),
         const SizedBox(width: 16),
         Text(widget.lecturer.fullName),
@@ -229,7 +290,10 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
             ),
           ),
           selectedIndex: destination,
-          onDestinationSelected: (value) => setState(() => destination = value),
+          onDestinationSelected: (value) => setState(() {
+            destination = value;
+            if (value == 2) _attendanceVisited = true;
+          }),
           labelType: NavigationRailLabelType.all,
           destinations: const [
             NavigationRailDestination(
@@ -256,30 +320,50 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         ),
         const VerticalDivider(width: 1),
         Expanded(
-          child: switch (destination) {
-            0 => scheduleBody(),
-            1 => ClassesScreen(
-              classes: classes,
-              schedules: schedules,
-              lecturerId: widget.lecturer.lecturerId,
-              repository: widget.repository,
-              onChanged: load,
-            ),
-            2 => AttendanceScreen(
-              lecturer: widget.lecturer,
-              schedules: schedules,
-              classes: classes,
-              repository: _attendanceRepo,
-            ),
-            3 => AttendanceReportScreen(
-              lecturer: widget.lecturer,
-              classes: classes,
-              schedules: schedules,
-              attendanceRepository: _attendanceRepo,
-              scheduleRepository: widget.repository,
-            ),
-            _ => profile(),
-          },
+          child: IndexedStack(
+            index: destination,
+            children: [
+              scheduleBody(),
+              destination == 1
+                  ? ClassesScreen(
+                      classes: classes,
+                      schedules: schedules,
+                      lecturerId: widget.lecturer.lecturerId,
+                      repository: widget.repository,
+                      onChanged: load,
+                    )
+                  : const SizedBox.shrink(),
+              _attendanceVisited
+                  ? AttendanceScreen(
+                      lecturer: widget.lecturer,
+                      schedules: schedules,
+                      classes: classes,
+                      repository: _attendanceRepo,
+                      scheduleRepository: widget.repository,
+                      currentScheduleId: _latestImport?.schedule.scheduleId,
+                      importedDates: Map.of(_importDates),
+                      importRevision: _importRevision,
+                      onOpenReport: (schedule, session) => setState(() {
+                        _reportClassKey = schedule.key;
+                        _reportDateOption = '${session.date}|${session.slot}';
+                        destination = 3;
+                      }),
+                    )
+                  : const SizedBox.shrink(),
+              destination == 3
+                  ? AttendanceReportScreen(
+                      lecturer: widget.lecturer,
+                      classes: classes,
+                      schedules: schedules,
+                      attendanceRepository: _attendanceRepo,
+                      scheduleRepository: widget.repository,
+                      initialClassKey: _reportClassKey,
+                      initialDateOption: _reportDateOption,
+                    )
+                  : const SizedBox.shrink(),
+              profile(),
+            ],
+          ),
         ),
       ],
     ),

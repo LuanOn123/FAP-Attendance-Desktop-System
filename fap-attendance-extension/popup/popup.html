@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="header">
+    <div class="title">FAP Attendance Connector</div>
+  </div>
+
+  <div id="status-container" class="status-container scanning">
+    <div class="status-icon"></div>
+    <div id="status-text" class="status-text">Scanning FAP Page...</div>
+  </div>
+
+  <div id="session-info" class="session-info hidden">
+    <form id="session-form" class="info-grid">
+      <div class="info-label">Course</div>
+      <input id="val-course" required aria-label="Mã môn" placeholder="SWE102">
+      
+      <div class="info-label">Class</div>
+      <input id="val-class" required aria-label="Lớp" placeholder="SE1701">
+      <label for="val-date">Ngày học</label>
+      <input id="val-date" type="date" required>
+      
+      <div class="info-label">Slot</div>
+      <input id="val-slot" type="number" min="1" max="12" required aria-label="Slot">
+      <label for="val-room">Phòng</label>
+      <input id="val-room" required placeholder="Ví dụ: AL-201">
+      <label for="val-start">Bắt đầu</label>
+      <input id="val-start" type="time" required>
+      <label for="val-end">Kết thúc</label>
+      <input id="val-end" type="time" required>
+      
+      <div class="info-label">Students</div>
+      <div id="val-students" class="info-value">-</div>
+    </form>
+    <p>Slot 1–6 gợi ý giờ học; hãy sửa nếu lịch thực tế khác. Dữ liệu quét là danh sách lớp, sinh viên sẽ điểm danh trong app.</p>
+  </div>
+
+  <div id="desktop-status" class="desktop-status offline">
+    <span id="desktop-indicator" class="indicator"></span>
+    <span id="desktop-text">Desktop App: Checking...</span>
+  </div>
+
+  <div class="actions">
+    <button id="btn-rescan" class="btn btn-secondary">Quét lại / Kết nối lại</button>
+    <button id="btn-preview" class="btn btn-secondary hidden">Preview Students</button>
+    <button id="btn-send" class="btn btn-primary hidden" disabled>Send to Attendance App</button>
+  </div>
+
+  <div id="preview-container" class="preview-container hidden">
+    <div class="preview-header">Student List</div>
+    <div id="student-list" class="student-list"></div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

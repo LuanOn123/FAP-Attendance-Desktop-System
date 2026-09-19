@@ -15,10 +15,12 @@ class MockAttendanceRepository implements AttendanceRepository {
   List<AttendanceRecord> records = [];
 
   @override
-  Future<List<SessionModel>> getSessionsByClass(String classId) async => sessions;
+  Future<List<SessionModel>> getSessionsByClass(String classId) async =>
+      sessions;
 
   @override
-  Future<List<AttendanceRecord>> getSessionAttendance(String sessionId) async => records;
+  Future<List<AttendanceRecord>> getSessionAttendance(String sessionId) async =>
+      records;
 
   @override
   Future<void> updateAttendanceStatus({
@@ -38,13 +40,15 @@ class MockAttendanceRepository implements AttendanceRepository {
   }
 
   @override
-  Future<List<AttendanceRecord>> getClassHistory(String classId) async => records;
+  Future<List<AttendanceRecord>> getClassHistory(String classId) async =>
+      records;
 
   @override
   Future<List<ClassModel>> getLecturerClasses(String lecturerId) async => [];
 
   @override
   Future<SessionModel> startSession({
+    String? date,
     required String classId,
     required int slot,
     required String startTime,
@@ -147,49 +151,52 @@ void main() {
   ];
 
   group('ReportTable Component Tests', () {
-    testWidgets('renders table headers and student rows with correct status & FAP codes', (tester) async {
-      int? tappedIndex;
+    testWidgets(
+      'renders table headers and student rows with correct status & FAP codes',
+      (tester) async {
+        int? tappedIndex;
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: ReportTable(
-              records: sampleRecords,
-              selectedClass: sampleClass,
-              loading: false,
-              onEdit: (idx) => tappedIndex = idx,
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: ReportTable(
+                records: sampleRecords,
+                selectedClass: sampleClass,
+                loading: false,
+                onEdit: (idx) => tappedIndex = idx,
+              ),
             ),
           ),
-        ),
-      );
+        );
 
-      // Verify Table Headers
-      expect(find.text('MSSV'), findsOneWidget);
-      expect(find.text('Họ và tên'), findsOneWidget);
-      expect(find.text('Lớp học'), findsOneWidget);
-      expect(find.text('Trạng thái'), findsOneWidget);
-      expect(find.text('FAP'), findsOneWidget);
+        // Verify Table Headers
+        expect(find.text('MSSV'), findsOneWidget);
+        expect(find.text('Họ và tên'), findsOneWidget);
+        expect(find.text('Lớp học'), findsOneWidget);
+        expect(find.text('Trạng thái'), findsOneWidget);
+        expect(find.text('FAP'), findsOneWidget);
 
-      // Verify Student Data Rows
-      expect(find.text('SE181848'), findsOneWidget);
-      expect(find.text('Nguyen Van A'), findsOneWidget);
-      expect(find.text('Có mặt'), findsOneWidget);
-      expect(find.text('P'), findsOneWidget);
+        // Verify Student Data Rows
+        expect(find.text('SE181848'), findsOneWidget);
+        expect(find.text('Nguyen Van A'), findsOneWidget);
+        expect(find.text('Có mặt'), findsOneWidget);
+        expect(find.text('P'), findsOneWidget);
 
-      expect(find.text('SE181849'), findsOneWidget);
-      expect(find.text('Tran Thi B'), findsOneWidget);
-      expect(find.text('Đi muộn'), findsOneWidget);
-      expect(find.text('L'), findsOneWidget);
+        expect(find.text('SE181849'), findsOneWidget);
+        expect(find.text('Tran Thi B'), findsOneWidget);
+        expect(find.text('Đi muộn'), findsOneWidget);
+        expect(find.text('L'), findsOneWidget);
 
-      expect(find.text('SE181850'), findsOneWidget);
-      expect(find.text('Le Van C'), findsOneWidget);
-      expect(find.text('Vắng'), findsOneWidget);
-      expect(find.text('A'), findsOneWidget);
+        expect(find.text('SE181850'), findsOneWidget);
+        expect(find.text('Le Van C'), findsOneWidget);
+        expect(find.text('Vắng'), findsOneWidget);
+        expect(find.text('A'), findsOneWidget);
 
-      // Tap on a row to trigger edit
-      await tester.tap(find.text('SE181848'));
-      expect(tappedIndex, equals(0));
-    });
+        // Tap on a row to trigger edit
+        await tester.tap(find.text('SE181848'));
+        expect(tappedIndex, equals(0));
+      },
+    );
 
     testWidgets('renders empty state when no records exist', (tester) async {
       await tester.pumpWidget(
@@ -205,12 +212,17 @@ void main() {
         ),
       );
 
-      expect(find.text('Chưa có sinh viên nào điểm danh qua QR cho buổi này.'), findsOneWidget);
+      expect(
+        find.text('Chưa có sinh viên nào điểm danh qua QR cho buổi này.'),
+        findsOneWidget,
+      );
     });
   });
 
   group('ManualUpdateDialog Tests', () {
-    testWidgets('allows changing attendance status and saving notes', (tester) async {
+    testWidgets('allows changing attendance status and saving notes', (
+      tester,
+    ) async {
       String? savedStatus;
       String? savedNote;
 
@@ -250,7 +262,9 @@ void main() {
   });
 
   group('AttendanceReportScreen Full Feature Tests', () {
-    testWidgets('loads and renders class attendance summary metrics', (tester) async {
+    testWidgets('loads and renders class attendance summary metrics', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(1280, 900);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() {

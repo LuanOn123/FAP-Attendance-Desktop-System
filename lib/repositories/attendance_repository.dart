@@ -7,6 +7,7 @@ import '../models/class_model.dart';
 
 abstract class AttendanceRepository {
   Future<SessionModel> startSession({
+    String? date,
     required String classId,
     required int slot,
     required String startTime,
@@ -65,6 +66,7 @@ class SheetAttendanceRepository implements AttendanceRepository {
 
   @override
   Future<SessionModel> startSession({
+    String? date,
     required String classId,
     required int slot,
     required String startTime,
@@ -74,20 +76,31 @@ class SheetAttendanceRepository implements AttendanceRepository {
     final now = DateTime.now();
     final today =
         '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
-    final token = 'TKN_${now.millisecondsSinceEpoch}_${Random().nextInt(9000) + 1000}';
+    final token =
+        'TKN_${now.millisecondsSinceEpoch}_${Random().nextInt(9000) + 1000}';
     final secret = (Random().nextInt(900000) + 100000).toString();
     final expiresAt = now.add(const Duration(seconds: 120)).toIso8601String();
 
-    final result = await sheets.request('createSession', {
-      'classId': classId,
-      'date': today,
-      'slot': slot,
-      'startTime': startTime,
-      'endTime': endTime,
-      'currentToken': token,
-      'currentSecretCode': secret,
-      'tokenExpiredAt': expiresAt,
-    });
+    dynamic result;
+    try {
+      result = await sheets.request('createSession', {
+        'classId': classId,
+        'date': date ?? today,
+        'slot': slot,
+        'startTime': startTime,
+        'endTime': endTime,
+        'currentToken': token,
+        'currentSecretCode': secret,
+        'tokenExpiredAt': expiresAt,
+      });
+    } on AppException catch (e) {
+      if (e.message.contains('Thao tác chưa được hỗ trợ')) {
+        throw const AppException(
+          'Apps Script đang dùng bản cũ. Hãy copy Code.gs mới nhất lên Google Apps Script và tạo Deployment mới để sử dụng tính năng Điểm danh.',
+        );
+      }
+      rethrow;
+    }
 
     return SessionModel.fromJson(Map<String, dynamic>.from(result as Map));
   }
@@ -181,13 +194,23 @@ class SheetAttendanceRepository implements AttendanceRepository {
     try {
       final sessions = await getSessionsByClass(classId);
       final results = await Future.wait(
-        sessions.map((s) => getSessionAttendance(s.sessionId).catchError((_) => <AttendanceRecord>[])),
+        sessions.map(
+          (s) => getSessionAttendance(
+            s.sessionId,
+          ).catchError((_) => <AttendanceRecord>[]),
+        ),
       );
       return results.expand((list) => list).toList();
     } catch (_) {
-      final result = await sheets.request('getClassHistory', {'classId': classId});
+      final result = await sheets.request('getClassHistory', {
+        'classId': classId,
+      });
       return (result as List)
-          .map((item) => AttendanceRecord.fromJson(Map<String, dynamic>.from(item as Map)))
+          .map(
+            (item) => AttendanceRecord.fromJson(
+              Map<String, dynamic>.from(item as Map),
+            ),
+          )
           .toList();
     }
   }
@@ -200,18 +223,23 @@ class SheetAttendanceRepository implements AttendanceRepository {
       final rows = await sheets.getRows('Sessions');
       return rows
           .where((r) {
-            final rowClassId = (r['classId']?.toString() ?? '').trim().toUpperCase();
+            final rowClassId = (r['classId']?.toString() ?? '')
+                .trim()
+                .toUpperCase();
             if (rowClassId.isEmpty) return false;
-            return rowClassId == targetId ||
-                rowClassId.contains(targetId) ||
-                targetId.contains(rowClassId);
+            return rowClassId == targetId;
           })
           .map((r) => SessionModel.fromJson(r))
           .toList();
     } catch (_) {
-      final result = await sheets.request('getSessionsByClass', {'classId': targetId});
+      final result = await sheets.request('getSessionsByClass', {
+        'classId': targetId,
+      });
       return (result as List)
-          .map((item) => SessionModel.fromJson(Map<String, dynamic>.from(item as Map)))
+          .map(
+            (item) =>
+                SessionModel.fromJson(Map<String, dynamic>.from(item as Map)),
+          )
           .toList();
     }
   }
@@ -225,9 +253,14 @@ class SheetAttendanceRepository implements AttendanceRepository {
           .map((r) => ClassModel.fromJson(r))
           .toList();
     } catch (_) {
-      final result = await sheets.request('getLecturerClasses', {'lecturerId': lecturerId});
+      final result = await sheets.request('getLecturerClasses', {
+        'lecturerId': lecturerId,
+      });
       return (result as List)
-          .map((item) => ClassModel.fromJson(Map<String, dynamic>.from(item as Map)))
+          .map(
+            (item) =>
+                ClassModel.fromJson(Map<String, dynamic>.from(item as Map)),
+          )
           .toList();
     }
   }
@@ -239,6 +272,7 @@ class DemoAttendanceRepository implements AttendanceRepository {
 
   @override
   Future<SessionModel> startSession({
+    String? date,
     required String classId,
     required int slot,
     required String startTime,
@@ -256,7 +290,7 @@ class DemoAttendanceRepository implements AttendanceRepository {
     final session = SessionModel(
       sessionId: sessionId,
       classId: classId,
-      date: today,
+      date: date ?? today,
       slot: slot,
       startTime: startTime,
       endTime: endTime,
@@ -279,7 +313,9 @@ class DemoAttendanceRepository implements AttendanceRepository {
     required String tokenExpiredAt,
   }) async {
     final session = _sessions[sessionId];
-    if (session == null) throw const AppException('Phiên điểm danh không tồn tại.');
+    if (session == null) {
+      throw const AppException('Phiên điểm danh không tồn tại.');
+    }
     _sessions[sessionId] = session.copyWith(
       currentToken: newToken,
       currentSecretCode: newSecretCode,
@@ -290,7 +326,9 @@ class DemoAttendanceRepository implements AttendanceRepository {
   @override
   Future<void> closeSession(String sessionId) async {
     final session = _sessions[sessionId];
-    if (session == null) throw const AppException('Phiên điểm danh không tồn tại.');
+    if (session == null) {
+      throw const AppException('Phiên điểm danh không tồn tại.');
+    }
     _sessions[sessionId] = session.copyWith(status: 'CLOSED');
   }
 
@@ -358,7 +396,9 @@ class DemoAttendanceRepository implements AttendanceRepository {
     required String note,
     required String updatedBy,
   }) async {
-    final idx = _attendanceRecords.indexWhere((r) => r.attendanceId == attendanceId);
+    final idx = _attendanceRecords.indexWhere(
+      (r) => r.attendanceId == attendanceId,
+    );
     if (idx == -1) throw const AppException('Bản ghi điểm danh không tồn tại.');
     _attendanceRecords[idx] = _attendanceRecords[idx].copyWith(
       status: status,
@@ -376,18 +416,25 @@ class DemoAttendanceRepository implements AttendanceRepository {
   }) async {
     final now = DateTime.now();
     for (final code in studentCodes) {
-      _attendanceRecords.add(AttendanceRecord(
-        attendanceId: 'absent-${now.millisecondsSinceEpoch}-$code',
-        sessionId: sessionId,
-        studentId: 'std-$code',
-        studentCode: code,
-        fullName: 'Sinh viên $code',
-        status: 'ABSENT',
-        checkInTime: '',
-        updatedAt: now.toIso8601String(),
-        note: 'Tự động đánh vắng khi chốt phiên',
-        updatedBy: lecturerEmail,
-      ));
+      if (_attendanceRecords.any(
+        (r) => r.sessionId == sessionId && r.studentCode == code,
+      )) {
+        continue;
+      }
+      _attendanceRecords.add(
+        AttendanceRecord(
+          attendanceId: 'absent-${now.millisecondsSinceEpoch}-$code',
+          sessionId: sessionId,
+          studentId: 'std-$code',
+          studentCode: code,
+          fullName: 'Sinh viên $code',
+          status: 'ABSENT',
+          checkInTime: '',
+          updatedAt: now.toIso8601String(),
+          note: 'Tự động đánh vắng khi chốt phiên',
+          updatedBy: lecturerEmail,
+        ),
+      );
     }
   }
 
@@ -397,7 +444,9 @@ class DemoAttendanceRepository implements AttendanceRepository {
         .where((s) => s.classId == classId)
         .map((s) => s.sessionId)
         .toSet();
-    return _attendanceRecords.where((r) => sessionIds.contains(r.sessionId)).toList();
+    return _attendanceRecords
+        .where((r) => sessionIds.contains(r.sessionId))
+        .toList();
   }
 
   @override

@@ -7,6 +7,8 @@ import '../../models/class_model.dart';
 import '../../models/lecturer.dart';
 import '../../models/schedule.dart';
 import '../../models/session_model.dart';
+import '../../models/roster.dart';
+import '../../repositories/schedule_repository.dart';
 import '../../repositories/attendance_repository.dart';
 import '../../services/class_mapping_service.dart';
 import 'session_qr_widget.dart';
@@ -17,6 +19,11 @@ class AttendanceScreen extends StatefulWidget {
   final List<Schedule> schedules;
   final List<ClassModel> classes;
   final AttendanceRepository repository;
+  final ScheduleRepository? scheduleRepository;
+  final String? currentScheduleId;
+  final Map<String, String> importedDates;
+  final void Function(Schedule schedule, SessionModel session)? onOpenReport;
+  final int importRevision;
 
   const AttendanceScreen({
     super.key,
@@ -24,6 +31,11 @@ class AttendanceScreen extends StatefulWidget {
     required this.schedules,
     required this.classes,
     required this.repository,
+    this.scheduleRepository,
+    this.currentScheduleId,
+    this.importedDates = const {},
+    this.onOpenReport,
+    this.importRevision = 0,
   });
 
   @override
@@ -35,9 +47,24 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   SessionModel? activeSession;
   bool isStarting = false;
   bool isClosing = false;
+  bool _pendingAbsences = false;
   String? errorMessage;
   List<AttendanceRecord> attendanceRecords = [];
   Timer? _refreshTimer;
+
+  @override
+  void didUpdateWidget(covariant AttendanceScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.currentScheduleId != oldWidget.currentScheduleId ||
+        widget.importRevision != oldWidget.importRevision) {
+      // Leave the existing session on the backend so it can be resumed.
+      _refreshTimer?.cancel();
+      activeSession = null;
+      selectedSchedule = null;
+      attendanceRecords = [];
+      _pendingAbsences = false;
+    }
+  }
 
   @override
   void dispose() {
@@ -85,26 +112,62 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
     final mappedClass = mapping.mappedClass!;
     final classIdToUse =
-        mappedClass.classId.trim().isNotEmpty && mappedClass.classId.trim() != 'null'
-            ? mappedClass.classId.trim()
-            : mappedClass.key;
+        mappedClass.classId.trim().isNotEmpty &&
+            mappedClass.classId.trim() != 'null'
+        ? mappedClass.classId.trim()
+        : mappedClass.key;
 
     try {
-      final session = await widget.repository.startSession(
-        classId: classIdToUse,
-        slot: schedule.slot,
-        startTime: schedule.startTime,
-        endTime: schedule.endTime,
-        lecturerId: widget.lecturer.lecturerId,
-      );
+      final importedDate = widget.importedDates[schedule.scheduleId];
+      final date =
+          importedDate ?? DateTime.now().toIso8601String().substring(0, 10);
+      final sessions = await widget.repository.getSessionsByClass(classIdToUse);
+      final sameSession = sessions
+          .where((s) => s.date == date && s.slot == schedule.slot)
+          .toList();
+      // Retry/navigation must resume the existing session, including closed ones.
+      var session = sameSession.isNotEmpty
+          ? sameSession.first
+          : await widget.repository.startSession(
+              date: date,
+              classId: classIdToUse,
+              slot: schedule.slot,
+              startTime: schedule.startTime,
+              endTime: schedule.endTime,
+              lecturerId: widget.lecturer.lecturerId,
+            );
+      if (sameSession.isNotEmpty && session.isOpen) {
+        final now = DateTime.now();
+        final token = 'TKN_${now.microsecondsSinceEpoch}';
+        final secret = session.currentSecretCode.isNotEmpty
+            ? session.currentSecretCode
+            : session.currentToken.split('#').last;
+        final expiresAt = now
+            .add(const Duration(seconds: 120))
+            .toIso8601String();
+        await widget.repository.rotateSessionToken(
+          sessionId: session.sessionId,
+          newToken: token,
+          newSecretCode: secret,
+          tokenExpiredAt: expiresAt,
+        );
+        session = session.copyWith(
+          currentToken: token,
+          currentSecretCode: secret,
+          tokenExpiredAt: expiresAt,
+        );
+      }
 
       if (mounted) {
         setState(() {
           selectedSchedule = schedule;
           activeSession = session;
           attendanceRecords = [];
+          _pendingAbsences =
+              !session.isOpen && widget.scheduleRepository != null;
         });
         _startAttendancePolling();
+        await _fetchAttendanceList();
       }
     } catch (e) {
       if (mounted) {
@@ -146,13 +209,20 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     if (confirm != true) return;
 
     setState(() => isClosing = true);
+    final closingSession = activeSession!;
+    final closingSchedule = selectedSchedule!;
     try {
-      await widget.repository.closeSession(activeSession!.sessionId);
-      _refreshTimer?.cancel();
-      if (mounted) {
+      await widget.repository.closeSession(closingSession.sessionId);
+      if (mounted && activeSession?.sessionId == closingSession.sessionId) {
+        _refreshTimer?.cancel();
         setState(() {
-          activeSession = activeSession!.copyWith(status: 'CLOSED');
+          activeSession = closingSession.copyWith(status: 'CLOSED');
+          _pendingAbsences = widget.scheduleRepository != null;
         });
+      }
+      await _markMissing(closingSession, closingSchedule);
+      await _fetchAttendanceList();
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Đã đóng phiên điểm danh thành công.')),
         );
@@ -163,6 +233,45 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           SnackBar(
             content: Text(
               e is AppException ? e.message : 'Lỗi khi đóng phiên điểm danh.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => isClosing = false);
+    }
+  }
+
+  Future<void> _markMissing(SessionModel session, Schedule schedule) async {
+    if (widget.scheduleRepository == null) return;
+    final roster = await widget.scheduleRepository!.getRoster(
+      ClassTarget(
+        semester: schedule.semester,
+        subjectCode: schedule.subjectCode,
+        classCode: schedule.classCode,
+      ),
+    );
+    await widget.repository.markAbsent(
+      sessionId: session.sessionId,
+      studentCodes: roster.map((s) => s.studentCode).toList(),
+      lecturerEmail: widget.lecturer.email,
+    );
+    if (mounted && activeSession?.sessionId == session.sessionId) {
+      setState(() => _pendingAbsences = false);
+    }
+  }
+
+  Future<void> _retryAbsences() async {
+    setState(() => isClosing = true);
+    try {
+      await _markMissing(activeSession!, selectedSchedule!);
+      await _fetchAttendanceList();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Chưa chốt được danh sách vắng. Thử lại trước khi xuất báo cáo. $e',
             ),
           ),
         );
@@ -196,6 +305,14 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
   Widget _buildScheduleSelectionView() {
     final mappingService = ClassMappingService();
+    final sortedSchedules = List<Schedule>.of(widget.schedules)
+      ..sort((a, b) {
+        if (a.scheduleId == b.scheduleId) return 0;
+        if (a.scheduleId == widget.currentScheduleId) return -1;
+        if (b.scheduleId == widget.currentScheduleId) return 1;
+        final day = a.dayOfWeek.compareTo(b.dayOfWeek);
+        return day != 0 ? day : a.startTime.compareTo(b.startTime);
+      });
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -252,7 +369,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                   : ListView.builder(
                       itemCount: widget.schedules.length,
                       itemBuilder: (context, index) {
-                        final schedule = widget.schedules[index];
+                        final schedule = sortedSchedules[index];
                         final mapping = mappingService.map(
                           schedule,
                           widget.classes,
@@ -323,6 +440,18 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                                 Column(
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
+                                    if (schedule.scheduleId ==
+                                        widget.currentScheduleId)
+                                      const Chip(
+                                        label: Text('Hiện tại'),
+                                        avatar: Icon(Icons.push_pin, size: 16),
+                                      ),
+                                    if (widget.importedDates[schedule
+                                            .scheduleId] !=
+                                        null)
+                                      Text(
+                                        'Ngày: ${widget.importedDates[schedule.scheduleId]}',
+                                      ),
                                     Chip(
                                       visualDensity: VisualDensity.compact,
                                       backgroundColor:
@@ -397,68 +526,93 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header Bar
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              '${schedule.subjectCode} · ${schedule.classCode}',
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.headlineMedium
-                                  ?.copyWith(fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: session.isOpen
-                                  ? Colors.green.shade100
-                                  : Colors.red.shade100,
-                            ),
-                            child: Text(
-                              session.isOpen
-                                  ? 'ĐANG ĐIỂM DANH'
-                                  : 'ĐÃ ĐÓNG PHIÊN',
-                              style: TextStyle(
-                                color: session.isOpen
-                                    ? Colors.green.shade900
-                                    : Colors.red.shade900,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${schedule.subjectName} · Slot ${schedule.slot} (${schedule.startTime} - ${schedule.endTime}) · Phòng ${schedule.room}',
-                        style: TextStyle(
-                          color: Colors.grey.shade700,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Row(
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    OutlinedButton.icon(
-                      onPressed: _openStudentCheckinTest,
-                      icon: const Icon(Icons.phone_android),
-                      label: const Text('Mở Test Check-in'),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            '${schedule.subjectCode} · ${schedule.classCode}',
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.headlineMedium
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: session.isOpen
+                                ? Colors.green.shade100
+                                : Colors.red.shade100,
+                          ),
+                          child: Text(
+                            session.isOpen ? 'ĐANG ĐIỂM DANH' : 'ĐÃ ĐÓNG PHIÊN',
+                            style: TextStyle(
+                              color: session.isOpen
+                                  ? Colors.green.shade900
+                                  : Colors.red.shade900,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${schedule.subjectName} · Slot ${schedule.slot} (${schedule.startTime} - ${schedule.endTime}) · Phòng ${schedule.room}',
+                      style: TextStyle(
+                        color: Colors.grey.shade700,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 8,
+                  children: [
+                    if (!session.isOpen && widget.onOpenReport != null)
+                      OutlinedButton.icon(
+                        onPressed: _pendingAbsences
+                            ? null
+                            : () => widget.onOpenReport!(schedule, session),
+                        icon: const Icon(Icons.bar_chart),
+                        label: const Text('Báo cáo / Excel'),
+                      ),
+                    if (_pendingAbsences)
+                      FilledButton.icon(
+                        onPressed: isClosing ? null : _retryAbsences,
+                        icon: const Icon(Icons.sync),
+                        label: const Text('Chốt danh sách vắng'),
+                      ),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        _refreshTimer?.cancel();
+                        setState(() {
+                          activeSession = null;
+                          selectedSchedule = null;
+                          attendanceRecords = [];
+                        });
+                      },
+                      icon: const Icon(Icons.list),
+                      label: const Text('Danh sách buổi học'),
+                    ),
+                    if (session.isOpen)
+                      OutlinedButton.icon(
+                        onPressed: _openStudentCheckinTest,
+                        icon: const Icon(Icons.phone_android),
+                        label: const Text('Mở Test Check-in'),
+                      ),
                     const SizedBox(width: 12),
                     if (session.isOpen)
                       FilledButton.icon(
@@ -558,7 +712,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                         children: [
                           _buildStatCard(
                             'Tổng check-in',
-                            '${attendanceRecords.length}',
+                            '${presentCount + lateCount}',
                             Icons.how_to_reg,
                             const Color(0xFF1976D2),
                           ),

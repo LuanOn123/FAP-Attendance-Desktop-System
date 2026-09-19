@@ -26,6 +26,8 @@ class AttendanceReportScreen extends StatefulWidget {
   final List<Schedule> schedules;
   final AttendanceRepository attendanceRepository;
   final ScheduleRepository? scheduleRepository;
+  final String? initialClassKey;
+  final String? initialDateOption;
 
   const AttendanceReportScreen({
     super.key,
@@ -34,6 +36,8 @@ class AttendanceReportScreen extends StatefulWidget {
     required this.schedules,
     required this.attendanceRepository,
     this.scheduleRepository,
+    this.initialClassKey,
+    this.initialDateOption,
   });
 
   @override
@@ -107,7 +111,10 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
     super.initState();
     final mapped = _mappedClasses;
     if (mapped.isNotEmpty) {
-      _selectedClass = mapped.first;
+      _selectedClass = mapped.firstWhere(
+        (c) => c.key == widget.initialClassKey,
+        orElse: () => mapped.first,
+      );
       _loadAttendance();
     }
   }
@@ -132,37 +139,36 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
       final cls = _selectedClass!;
       final unifiedClassId =
           cls.classId.trim().isNotEmpty && cls.classId.trim() != 'null'
-              ? cls.classId.trim()
-              : cls.key.trim();
+          ? cls.classId.trim()
+          : cls.key.trim();
 
       // Chạy song song truy vấn phiên học và danh sách sinh viên qua Future.wait
       final results = await Future.wait<dynamic>([
         _sessionsCache.containsKey(unifiedClassId)
             ? Future.value(_sessionsCache[unifiedClassId]!)
             : widget.attendanceRepository
-                .getSessionsByClass(unifiedClassId)
-                .then((list) {
-                  _sessionsCache[unifiedClassId] = list;
-                  return list;
-                }),
+                  .getSessionsByClass(unifiedClassId)
+                  .then((list) {
+                    _sessionsCache[unifiedClassId] = list;
+                    return list;
+                  }),
         _rosterCache.containsKey(cls.key)
             ? Future.value(_rosterCache[cls.key]!)
             : (widget.scheduleRepository != null
-                ? widget.scheduleRepository!
-                    .getRoster(
-                      ClassTarget(
-                        semester: cls.semester,
-                        subjectCode: cls.subjectCode,
-                        classCode: cls.classCode,
-                        classId: cls.classId,
-                      ),
-                    )
-                    .then((list) {
-                      _rosterCache[cls.key] = list;
-                      return list;
-                    })
-                    .catchError((_) => <RosterStudent>[])
-                : Future.value(<RosterStudent>[])),
+                  ? widget.scheduleRepository!
+                        .getRoster(
+                          ClassTarget(
+                            semester: cls.semester,
+                            subjectCode: cls.subjectCode,
+                            classCode: cls.classCode,
+                            classId: cls.classId,
+                          ),
+                        )
+                        .then((list) {
+                          _rosterCache[cls.key] = list;
+                          return list;
+                        })
+                  : Future.value(<RosterStudent>[])),
       ]);
 
       final List<SessionModel> sessions = List<SessionModel>.from(
@@ -184,7 +190,9 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
           _roster = roster;
           final dateOpts = _dateOptions;
           if (dateOpts.isNotEmpty) {
-            _selectedDateOption = dateOpts.first;
+            _selectedDateOption = dateOpts.contains(widget.initialDateOption)
+                ? widget.initialDateOption
+                : dateOpts.first;
           } else {
             _selectedDateOption = null;
           }
@@ -245,13 +253,12 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
           allRaw.addAll(_attendanceCache[s.sessionId]!);
         } else {
           futures.add(
-            widget.attendanceRepository
-                .getSessionAttendance(s.sessionId)
-                .then((list) {
-                  _attendanceCache[s.sessionId] = list;
-                  return list;
-                })
-                .catchError((_) => <AttendanceRecord>[]),
+            widget.attendanceRepository.getSessionAttendance(s.sessionId).then((
+              list,
+            ) {
+              _attendanceCache[s.sessionId] = list;
+              return list;
+            }),
           );
         }
       }
