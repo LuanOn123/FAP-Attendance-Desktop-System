@@ -25,7 +25,7 @@ class SessionQrDisplayWidget extends StatefulWidget {
 class _SessionQrDisplayWidgetState extends State<SessionQrDisplayWidget> {
   late String currentToken;
   late String currentSecretCode;
-  static const int totalSeconds = 120;
+  static const int totalSeconds = 30;
   int countdownSeconds = totalSeconds;
   Timer? _timer;
   bool isRotating = false;

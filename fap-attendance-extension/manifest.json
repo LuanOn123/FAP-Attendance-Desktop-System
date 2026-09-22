@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "FAP Attendance Connector",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Connect FAP lecturer attendance pages with FAP Attendance Desktop System.",
   "permissions": [
     "activeTab",
@@ -25,7 +25,10 @@
         "http://localhost/*",
         "http://127.0.0.1/*"
       ],
-      "js": ["content/fapAttendanceScanner.js"]
+      "js": [
+        "content/fapAttendanceScanner.js",
+        "content/fapAttendanceWriter.js"
+      ]
     }
   ],
   "background": {

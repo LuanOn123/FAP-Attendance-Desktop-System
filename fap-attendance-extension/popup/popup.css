@@ -192,3 +192,5 @@ body {
 }
 input { width: 100%; min-width: 0; box-sizing: border-box; padding: 7px; border: 1px solid #d5d7db; border-radius: 5px; }
 .session-info p { font-size: 12px; line-height: 1.5; color: #555; }
+
+body{width:380px;background:#fff9f4;color:#302921}button,input{font:inherit} .excel-panel{background:white;border:1px solid #f0ded0;border-radius:14px;padding:18px;margin:18px 0}.eyebrow{font-size:10px;font-weight:800;letter-spacing:2px;color:#b64d09}h2{font-size:19px;margin:6px 0 16px}.upload-label{display:block;font-weight:600;margin-bottom:8px}input[type=file]{width:100%;font-size:12px}input[type=file]::file-selector-button{background:#fff0e4;border:1px solid #f4c7a3;border-radius:6px;padding:8px;color:#9d4000;cursor:pointer}.import-note,small{color:#796d63;font-size:12px;line-height:1.6}#import-summary,#import-result{font-size:13px;line-height:1.6;overflow-wrap:anywhere}#btn-auto-attendance{width:100%;background:#e7630d}#btn-auto-attendance:disabled{background:#c6b9af;cursor:not-allowed}.info-grid input{min-width:0}.title{font-size:20px}

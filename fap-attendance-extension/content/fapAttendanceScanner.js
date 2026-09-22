@@ -89,6 +89,7 @@
     };
   }
   // Export only in the Node test harness.
+  globalThis.FapAttendanceScanner = {scan, isoDate};
   if (typeof module !== "undefined") module.exports = {scan, isoDate};
   if (typeof chrome !== "undefined" && chrome.runtime) {
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {

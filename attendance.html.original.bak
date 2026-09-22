@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ Thống Điểm Danh Sinh Viên</title>
+    <style>
+        :root {
+            --primary: #4361ee;
+            --primary-hover: #3a53d0;
+            --success: #2ecc71;
+            --danger: #e74c3c;
+            --warning: #f1c40f;
+            --bg-color: #f8f9fa;
+            --card-bg: #ffffff;
+            --text-main: #2b2d42;
+            --text-muted: #8d99ae;
+            --border-color: #edf2f4;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            background: var(--card-bg);
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+        }
+
+        .course-info h1 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .course-info p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        .stats {
+            display: flex;
+            gap: 1.5rem;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .student-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .student-card {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--card-bg);
+            padding: 1.25rem;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.02);
+            transition: transform 0.2s, box-shadow 0.2s;
+            border: 1px solid var(--border-color);
+        }
+
+        .student-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.05);
+        }
+
+        .student-info-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 1.25rem;
+            flex: 1;
+        }
+
+        .student-image {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--border-color);
+        }
+
+        .student-details h3 {
+            font-size: 1.1rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .student-meta {
+            display: flex;
+            gap: 1rem;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .student-code {
+            font-weight: 600;
+            color: var(--primary);
+            background: rgba(67, 97, 238, 0.1);
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .attendance-actions {
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        .btn-attendance {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: transparent;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        .btn-attendance:hover {
+            background: var(--bg-color);
+        }
+
+        .btn-present {
+            /* Active state styles will be added via JS */
+        }
+        .btn-present.active {
+            background: var(--success);
+            color: white;
+            border-color: var(--success);
+        }
+
+        .btn-absent.active {
+            background: var(--danger);
+            color: white;
+            border-color: var(--danger);
+        }
+
+        .btn-late.active {
+            background: var(--warning);
+            color: white;
+            border-color: var(--warning);
+        }
+
+        .submit-section {
+            margin-top: 2rem;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .btn-submit {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.8rem 2rem;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+            box-shadow: 0 4px 15px rgba(67, 97, 238, 0.3);
+        }
+
+        .btn-submit:hover {
+            background: var(--primary-hover);
+        }
+
+        @media (max-width: 768px) {
+            .student-card {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1.5rem;
+            }
+            .attendance-actions {
+                width: 100%;
+                justify-content: space-between;
+            }
+            .btn-attendance {
+                flex: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <div class="course-info">
+                <h1>Lập Trình Web (SWE102)</h1>
+                <p>Giảng viên: Tran Van B &bull; Lớp: SE1701 &bull; Ngày: 18/09/2026</p>
+            </div>
+            <div class="stats">
+                <div class="stat-item">
+                    <div class="stat-value" id="presentCount">0</div>
+                    <div class="stat-label">Có mặt</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="absentCount">0</div>
+                    <div class="stat-label">Vắng</div>
+                </div>
+            </div>
+        </header>
+
+        <div class="student-list" id="studentList">
+            <!-- Students will be injected here via JavaScript -->
+        </div>
+
+        <div class="submit-section">
+            <button class="btn-submit" onclick="submitAttendance()">Lưu Điểm Danh</button>
+        </div>
+    </div>
+
+    <script>
+        // Mock Data
+        const students = [
+            {
+                studentCode: "SE123456",
+                fullName: "Nguyen Van A",
+                email: "anvse123456@fpt.edu.vn",
+                image: "https://ui-avatars.com/api/?name=Nguyen+Van+A&background=random"
+            },
+            {
+                studentCode: "SE123457",
+                fullName: "Le Thi B",
+                email: "bltse123457@fpt.edu.vn",
+                image: "https://ui-avatars.com/api/?name=Le+Thi+B&background=random"
+            },
+            {
+                studentCode: "SE123458",
+                fullName: "Tran Van C",
+                email: "ctvse123458@fpt.edu.vn",
+                image: "https://ui-avatars.com/api/?name=Tran+Van+C&background=random"
+            },
+            {
+                studentCode: "SE123459",
+                fullName: "Pham Thi D",
+                email: "dptse123459@fpt.edu.vn",
+                image: "https://ui-avatars.com/api/?name=Pham+Thi+D&background=random"
+            }
+        ];
+
+        let attendanceState = {};
+
+        function renderStudents() {
+            const container = document.getElementById('studentList');
+            container.innerHTML = '';
+
+            students.forEach((student, index) => {
+                // Default all to Present for easier tracking
+                if(!attendanceState[student.studentCode]) {
+                    attendanceState[student.studentCode] = 'present';
+                }
+
+                const state = attendanceState[student.studentCode];
+
+                const card = document.createElement('div');
+                card.className = 'student-card';
+                card.innerHTML = `
+                    <div class="student-info-wrapper">
+                        <img src="${student.image}" alt="${student.fullName}" class="student-image">
+                        <div class="student-details">
+                            <h3>${student.fullName}</h3>
+                            <div class="student-meta">
+                                <span class="student-code">${student.studentCode}</span>
+                                <span>${student.email}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="attendance-actions">
+                        <button class="btn-attendance btn-present ${state === 'present' ? 'active' : ''}" 
+                                onclick="markAttendance('${student.studentCode}', 'present')">Có mặt</button>
+                        <button class="btn-attendance btn-late ${state === 'late' ? 'active' : ''}" 
+                                onclick="markAttendance('${student.studentCode}', 'late')">Đi trễ</button>
+                        <button class="btn-attendance btn-absent ${state === 'absent' ? 'active' : ''}" 
+                                onclick="markAttendance('${student.studentCode}', 'absent')">Vắng</button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+            updateStats();
+        }
+
+        function markAttendance(studentCode, status) {
+            attendanceState[studentCode] = status;
+            renderStudents();
+        }
+
+        function updateStats() {
+            let present = 0;
+            let absent = 0;
+            
+            Object.values(attendanceState).forEach(status => {
+                if (status === 'present' || status === 'late') present++;
+                if (status === 'absent') absent++;
+            });
+
+            document.getElementById('presentCount').innerText = present;
+            document.getElementById('absentCount').innerText = absent;
+        }
+
+        function submitAttendance() {
+            console.log("Attendance Data to submit:", attendanceState);
+            alert("Đã lưu điểm danh thành công! Kiểm tra console để xem dữ liệu JSON.");
+        }
+
+        // Initialize
+        renderStudents();
+    </script>
+</body>
+</html>

@@ -1,3 +1,4 @@
+let scannedTabId = null;
 let currentSessionData = null;
 let online = false;
 let busy = false;
@@ -22,7 +23,8 @@ function status(text, type) {
 }
 function buttonState() { $("btn-send").disabled = !online || !currentSessionData || busy; }
 async function refresh() {
-  busy = true; currentSessionData = null; buttonState();
+  busy = true; currentSessionData = null; scannedTabId = null; buttonState();
+  if (typeof resetImportReview === "function") resetImportReview();
   $("btn-send").textContent = "Gửi sang app Điểm danh";
   $("session-info").classList.add("hidden");
   status("Đang quét trang điểm danh…", "scanning");
@@ -54,11 +56,12 @@ async function scanPage() {
     let result;
     try { result = await chrome.tabs.sendMessage(tab.id, {type: "SCAN_ATTENDANCE"}); }
     catch (_) {
-      await chrome.scripting.executeScript({target: {tabId: tab.id}, files: ["content/fapAttendanceScanner.js"]});
+      await chrome.scripting.executeScript({target: {tabId: tab.id}, files: ["content/fapAttendanceScanner.js", "content/fapAttendanceWriter.js"]});
       result = await chrome.tabs.sendMessage(tab.id, {type: "SCAN_ATTENDANCE"});
     }
     if (!result?.success) throw new Error(result?.message || "Không đọc được danh sách.");
     currentSessionData = result.data;
+    scannedTabId = tab.id;
     $("val-course").value = result.data.course.courseCode;
     $("val-class").value = result.data.class.classCode;
     $("val-date").value = result.data.session.date;

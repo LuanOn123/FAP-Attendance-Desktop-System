@@ -11,8 +11,19 @@
 
   <div id="status-container" class="status-container scanning">
     <div class="status-icon"></div>
-    <div id="status-text" class="status-text">Scanning FAP Page...</div>
+    <div id="status-text" class="status-text">Đang quét trang điểm danh…</div>
   </div>
+
+  <section class="excel-panel" aria-labelledby="excel-title">
+    <div class="eyebrow">EXCEL → FAP</div><h2 id="excel-title">Điền kết quả điểm danh</h2>
+    <label class="upload-label" for="attendance-file">Chọn file Excel xuất từ app</label>
+    <input type="file" id="attendance-file" accept=".xlsx">
+    <p id="import-summary" role="status" aria-live="polite">Chọn file .xlsx để đối chiếu với trang đang mở.</p>
+    <p class="import-note">PRESENT → Có mặt · ABSENT → Vắng mặt.<br>LATE → Có mặt (FAP chỉ có hai lựa chọn).</p>
+    <button id="btn-auto-attendance" class="btn btn-primary" disabled>Bắt đầu tự điểm danh</button>
+    <p id="import-result" role="status" aria-live="polite"></p>
+    <small>Chỉ điền lựa chọn. Bạn kiểm tra và bấm Lưu trên FAP.</small>
+  </section>
 
   <div id="session-info" class="session-info hidden">
     <form id="session-form" class="info-grid">
@@ -46,15 +57,18 @@
 
   <div class="actions">
     <button id="btn-rescan" class="btn btn-secondary">Quét lại / Kết nối lại</button>
-    <button id="btn-preview" class="btn btn-secondary hidden">Preview Students</button>
-    <button id="btn-send" class="btn btn-primary hidden" disabled>Send to Attendance App</button>
+    <button id="btn-preview" class="btn btn-secondary hidden">Xem danh sách sinh viên</button>
+    <button id="btn-send" class="btn btn-primary hidden" disabled>Gửi sang app Điểm danh</button>
   </div>
 
   <div id="preview-container" class="preview-container hidden">
-    <div class="preview-header">Student List</div>
+    <div class="preview-header">Danh sách trên trang</div>
     <div id="student-list" class="student-list"></div>
   </div>
 
+  <script src="../vendor/xlsx.full.min.js"></script>
+  <script src="../shared/attendanceWorkbook.js"></script>
   <script src="popup.js"></script>
+  <script src="excelImport.js"></script>
 </body>
 </html>
