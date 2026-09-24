@@ -22,6 +22,8 @@ abstract class AttendanceRepository {
     required String tokenExpiredAt,
   });
 
+  Future<SessionModel> resetSession(String sessionId);
+
   Future<void> closeSession(String sessionId);
 
   Future<List<AttendanceRecord>> getSessionAttendance(String sessionId);
@@ -76,10 +78,15 @@ class SheetAttendanceRepository implements AttendanceRepository {
     final now = DateTime.now();
     final today =
         '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
-    final token =
-        'TKN_${now.millisecondsSinceEpoch}_${Random().nextInt(9000) + 1000}';
-    final secret = (Random().nextInt(900000) + 100000).toString();
-    final expiresAt = now.add(const Duration(seconds: 120)).toIso8601String();
+    final token = List.generate(
+      24,
+      (_) => Random.secure().nextInt(256).toRadixString(16).padLeft(2, '0'),
+    ).join();
+    const secret = '';
+    final expiresAt = now
+        .toUtc()
+        .add(const Duration(seconds: 120))
+        .toIso8601String();
 
     dynamic result;
     try {
@@ -118,6 +125,14 @@ class SheetAttendanceRepository implements AttendanceRepository {
       'currentSecretCode': newSecretCode,
       'tokenExpiredAt': tokenExpiredAt,
     });
+  }
+
+  @override
+  Future<SessionModel> resetSession(String sessionId) async {
+    final result = await sheets.request('resetSession', {
+      'sessionId': sessionId,
+    });
+    return SessionModel.fromJson(Map<String, dynamic>.from(result as Map));
   }
 
   @override
@@ -227,13 +242,13 @@ class SheetAttendanceRepository implements AttendanceRepository {
                 .trim()
                 .toUpperCase();
             if (rowClassId.isEmpty) return false;
-            return rowClassId == targetId;
+            return rowClassId == targetId && r['status'] != 'RESET';
           })
           .map((r) => SessionModel.fromJson(r))
           .toList();
     } catch (_) {
       final result = await sheets.request('getSessionsByClass', {
-        'classId': targetId,
+        'classId': classId.trim(),
       });
       return (result as List)
           .map(
@@ -282,10 +297,13 @@ class DemoAttendanceRepository implements AttendanceRepository {
     final now = DateTime.now();
     final today =
         '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
-    final sessionId = 'demo-session-${now.millisecondsSinceEpoch}';
+    final sessionId = 'demo-session-${now.microsecondsSinceEpoch}';
     final token = 'DEMO_TKN_${now.millisecondsSinceEpoch}';
-    final secret = (Random().nextInt(900000) + 100000).toString();
-    final expiresAt = now.add(const Duration(seconds: 120)).toIso8601String();
+    const secret = '';
+    final expiresAt = now
+        .toUtc()
+        .add(const Duration(seconds: 120))
+        .toIso8601String();
 
     final session = SessionModel(
       sessionId: sessionId,
@@ -320,6 +338,23 @@ class DemoAttendanceRepository implements AttendanceRepository {
       currentToken: newToken,
       currentSecretCode: newSecretCode,
       tokenExpiredAt: tokenExpiredAt,
+    );
+  }
+
+  @override
+  Future<SessionModel> resetSession(String sessionId) async {
+    final old = _sessions[sessionId];
+    if (old == null || old.status == 'RESET') {
+      throw const AppException('Phiên không còn hiệu lực.');
+    }
+    _sessions[sessionId] = old.copyWith(status: 'RESET');
+    return startSession(
+      date: old.date,
+      classId: old.classId,
+      slot: old.slot,
+      startTime: old.startTime,
+      endTime: old.endTime,
+      lecturerId: old.createdBy,
     );
   }
 
@@ -453,7 +488,9 @@ class DemoAttendanceRepository implements AttendanceRepository {
   Future<List<SessionModel>> getSessionsByClass(String classId) async {
     final targetId = classId.trim();
     if (targetId.isEmpty) return [];
-    return _sessions.values.where((s) => s.classId == targetId).toList();
+    return _sessions.values
+        .where((s) => s.classId == targetId && s.status != 'RESET')
+        .toList();
   }
 
   @override

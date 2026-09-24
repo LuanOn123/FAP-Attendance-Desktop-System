@@ -5,12 +5,15 @@ import '../core/app_config.dart';
 import '../models/fap_import_dto.dart';
 import '../repositories/schedule_repository.dart';
 import 'fap_import_service.dart';
+import 'attendance_sync_service.dart';
+import '../repositories/attendance_repository.dart';
 
 /// Runs only while a lecturer is signed in. Ordinary web pages cannot post here.
 class IntegrationServer {
   HttpServer? _server;
   bool _stopped = false;
   bool _importing = false;
+  AttendanceSyncService? _sync;
   final _events = StreamController<FapImportResult>.broadcast();
   Stream<FapImportResult> get onImportComplete => _events.stream;
   int? get port => _server?.port;
@@ -19,6 +22,7 @@ class IntegrationServer {
     ScheduleRepository repository,
     String lecturerId, {
     int port = 8765,
+    AttendanceRepository? attendanceRepository,
   }) async {
     if (_server != null) return;
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, port);
@@ -28,6 +32,13 @@ class IntegrationServer {
     }
     _server = server;
     final service = FapImportService(repository, lecturerId);
+    if (attendanceRepository != null) {
+      _sync = AttendanceSyncService(
+        repository,
+        attendanceRepository,
+        lecturerId,
+      );
+    }
     server.listen((request) => _handle(request, service));
   }
 
@@ -83,7 +94,10 @@ class IntegrationServer {
         return;
       }
       if (request.method != 'POST' ||
-          request.uri.path != '/api/integration/fap/session') {
+          ![
+            '/api/integration/fap/session',
+            '/api/integration/fap/report',
+          ].contains(request.uri.path)) {
         reply(404, {'success': false, 'message': 'Không tìm thấy endpoint.'});
         return;
       }
@@ -99,7 +113,7 @@ class IntegrationServer {
       if (_importing) {
         reply(409, {
           'success': false,
-          'message': 'Đang nhập một buổi học. Vui lòng đợi rồi gửi lại.',
+          'message': 'Đang xử lý dữ liệu. Vui lòng đợi rồi thử lại.',
         });
         return;
       }
@@ -118,6 +132,13 @@ class IntegrationServer {
         final json = jsonDecode(utf8.decode(bytes));
         if (json is! Map<String, dynamic>) {
           throw const FormatException('Payload phải là object.');
+        }
+        if (request.uri.path == '/api/integration/fap/report') {
+          if (_sync == null) {
+            throw const AppException('Bản app này chưa bật đồng bộ báo cáo.');
+          }
+          reply(200, await _sync!.report(json));
+          return;
         }
         final result = await service.importSession(FapImportDto.fromJson(json));
         reply(200, result.toJson());

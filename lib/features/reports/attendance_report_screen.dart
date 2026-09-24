@@ -68,6 +68,10 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
   /// Danh sách các buổi học (Ngày + Slot) duy nhất của lớp
   List<String> get _dateOptions {
     final Set<String> options = {};
+    if (_selectedClass?.key == widget.initialClassKey &&
+        widget.initialDateOption != null) {
+      options.add(widget.initialDateOption!);
+    }
     for (final s in _sessions) {
       options.add('${s.date}|${s.slot}');
     }
@@ -190,7 +194,9 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
           _roster = roster;
           final dateOpts = _dateOptions;
           if (dateOpts.isNotEmpty) {
-            _selectedDateOption = dateOpts.contains(widget.initialDateOption)
+            _selectedDateOption =
+                _selectedClass?.key == widget.initialClassKey &&
+                    dateOpts.contains(widget.initialDateOption)
                 ? widget.initialDateOption
                 : dateOpts.first;
           } else {
@@ -242,6 +248,16 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
             .toList();
       } else {
         targetSessions = _sessions;
+      }
+
+      if (targetSessions.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _records = [];
+            _error = 'Chưa có phiên điểm danh cho ngày và slot đã chọn.';
+          });
+        }
+        return;
       }
 
       // Fetch attendance in parallel for targetSessions (sử dụng cache nếu đã tải)
@@ -569,7 +585,7 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Báo cáo & Xuất file',
+                        'Báo cáo & Đồng bộ FAP',
                         style: Theme.of(context).textTheme.headlineMedium
                             ?.copyWith(fontWeight: FontWeight.bold),
                       ),

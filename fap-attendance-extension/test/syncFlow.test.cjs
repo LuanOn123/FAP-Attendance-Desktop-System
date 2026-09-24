@@ -1,0 +1,55 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const {JSDOM} = require('../../.tools/extension-tests/node_modules/jsdom');
+const root=path.join(__dirname,'../..');
+const read=name=>fs.readFileSync(path.join(root,name),'utf8');
+const flush=()=>new Promise(resolve=>setTimeout(resolve,10));
+
+test('desktop preview reads automatically but writes only after teacher click; changed snapshot requires review', async()=>{
+  const dom=new JSDOM(read('attendance.html'),{runScripts:'outside-only',url:'https://fap.fpt.edu.vn/Attendance.aspx'});
+  const w=dom.window; let shadow;
+  const attach=w.Element.prototype.attachShadow;
+  w.Element.prototype.attachShadow=function(options){shadow=attach.call(this,options);return shadow;};
+  w.chrome={runtime:{id:'test-extension',onMessage:{addListener(){}},sendMessage:async()=>({success:true,data:payload})}};
+  w.eval(read('fap-attendance-extension/content/fapAttendanceScanner.js'));
+  w.eval(read('fap-attendance-extension/content/fapAttendanceWriter.js'));
+  const data=w.FapAttendanceScanner.scan(w.document);
+  let payload={source:'desktop',sessionId:'session1',metadata:{courseCode:data.course.courseCode,classCode:data.class.classCode,...data.session},entries:data.students.map((s,i)=>({studentCode:s.studentCode,status:i===0?'present':'absent'}))};
+  const before=[...w.document.querySelectorAll('input[type=radio]')].map(i=>i.checked);
+  let submitted=0;w.document.addEventListener('submit',e=>{submitted++;e.preventDefault();});
+  w.eval(read('fap-attendance-extension/content/fapSyncPanel.js'));await flush();
+  assert.deepEqual([...w.document.querySelectorAll('input[type=radio]')].map(i=>i.checked),before);
+  const button=shadow.querySelector('button');assert.equal(button.disabled,false);
+  payload={...payload,sessionId:'reset-session'};
+  button.click();await flush();
+  assert.match(shadow.textContent,/vừa thay đổi/);
+  assert.deepEqual([...w.document.querySelectorAll('input[type=radio]')].map(i=>i.checked),before);
+  button.click();await flush();
+  assert.match(shadow.textContent,/Đã điền 35/);assert.equal(submitted,0);
+  payload={...payload,metadata:{...payload.metadata,startTime:'10:00'}};
+  button.click();await flush();assert.equal(button.disabled,true);assert.match(shadow.textContent,/Giờ học/);
+  dom.window.close();
+});
+
+test('student must login and explicitly confirm presence; sends credential without trusting form identity',async()=>{
+  const dom=new JSDOM(read('web_hosting/public/index.html'),{runScripts:'outside-only',url:'https://fap-attendance-cba45.web.app/checkin?sessionId=s1&token=qr1'});
+  const w=dom.window;w.AbortSignal=AbortSignal;let callback;const calls=[];
+  w.FAP_CONFIG={googleWebClientId:'web-client',appsScriptUrl:'https://example.test/exec'};
+  w.google={accounts:{id:{initialize:opts=>{callback=opts.callback},renderButton(){},disableAutoSelect(){}}}};
+  w.fetch=async(url,options)=>{const req=JSON.parse(options.body);calls.push(req);return {ok:true,json:async()=>({ok:true,data:req.action==='studentSessionInfo'?{student:{studentCode:'SE123456',fullName:'Student A',email:'a@fpt.edu.vn'},session:{subjectCode:'PRN232',classCode:'SE1917',date:'2026-09-22',slot:1,startTime:'07:00',endTime:'09:15',secretEnabled:false}}:{fullName:'Student A',checkInTime:'2026-09-22T00:30:00Z'}})}};
+  w.eval(read('web_hosting/public/checkin.js'));
+  await new Promise(resolve=>setTimeout(resolve,180));
+  assert.equal(w.document.getElementById('submit').disabled,true);
+  await callback({credential:'google-id-token'});await flush();
+  assert.match(w.document.getElementById('welcome').textContent,/Student A/);
+  const form=w.document.getElementById('checkin-form');
+  form.dispatchEvent(new w.Event('submit',{cancelable:true}));await flush();assert.equal(calls.length,1);
+  const presence=w.document.getElementById('presence');presence.checked=true;presence.dispatchEvent(new w.Event('change'));
+  assert.equal(w.document.getElementById('submit').disabled,false);
+  form.dispatchEvent(new w.Event('submit',{cancelable:true}));await flush();
+  assert.equal(calls[1].confirmPresent,true);assert.equal(calls[1].useSecret,false);assert.equal(calls[1].idToken,'google-id-token');assert.equal(calls[1].studentCode,undefined);
+  assert.equal(w.document.getElementById('success').hidden,false);
+  dom.window.close();
+});

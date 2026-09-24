@@ -12,9 +12,15 @@ async function desktopRequest(path, data) {
   return result;
 }
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  // Only the extension popup may write. Content scripts merely scan the DOM.
-  if (sender.id !== chrome.runtime.id || sender.tab) return;
-  if (!["CHECK_HEALTH", "SEND_SESSION"].includes(request.type)) return;
+  if (sender.id !== chrome.runtime.id) return;
+  if (sender.tab) {
+    if (request.type !== 'GET_REPORT') return;
+    try {
+      const url = new URL(sender.url || sender.tab.url);
+      if (!(url.hostname === 'fap.fpt.edu.vn' || ['localhost', '127.0.0.1'].includes(url.hostname) || (url.protocol === 'file:' && /attendance\.html$/i.test(url.pathname)))) return;
+    } catch { return; }
+  }
+  if (!["CHECK_HEALTH", "SEND_SESSION", "GET_REPORT"].includes(request.type)) return;
   (async () => {
     try {
       if (request.type === "CHECK_HEALTH") {
@@ -23,6 +29,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           throw new Error("Bản desktop chưa hỗ trợ connector này.");
         }
         sendResponse({status: "ok", data});
+      } else if (request.type === 'GET_REPORT') {
+        sendResponse(await desktopRequest('/api/integration/fap/report', request.data));
       } else {
         sendResponse(await desktopRequest("/api/integration/fap/session", request.data));
       }

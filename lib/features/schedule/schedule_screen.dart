@@ -17,6 +17,7 @@ import '../reports/attendance_report_screen.dart';
 import '../../services/integration_server.dart';
 import '../../models/fap_import_dto.dart';
 import 'dart:async';
+import '../../services/schedule_clock.dart';
 
 class ScheduleScreen extends StatefulWidget {
   final Lecturer lecturer;
@@ -24,6 +25,7 @@ class ScheduleScreen extends StatefulWidget {
   final AttendanceRepository? attendanceRepository;
   final IntegrationServer? integrationServer;
   final Future<void> Function() onLogout;
+  final DateTime Function()? clock;
   const ScheduleScreen({
     super.key,
     required this.lecturer,
@@ -31,6 +33,7 @@ class ScheduleScreen extends StatefulWidget {
     this.attendanceRepository,
     this.integrationServer,
     required this.onLogout,
+    this.clock,
   });
   @override
   State<ScheduleScreen> createState() => _ScheduleScreenState();
@@ -56,7 +59,33 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   String? semesterFilter;
   StreamSubscription? _importSub;
   late final _integration = widget.integrationServer ?? IntegrationServer();
-  FapImportResult? _latestImport;
+  String? _attendanceScheduleId;
+  Timer? _clockTimer;
+  List<Schedule> get _currentSlots => schedules
+      .where(
+        (s) =>
+            (semesterFilter == null || s.semester == semesterFilter) &&
+            ScheduleClock.isCurrent(
+              s,
+              exactDate: _importDates[s.scheduleId],
+              instant: widget.clock?.call(),
+            ),
+      )
+      .toList();
+  void _openAttendance([Schedule? schedule]) {
+    setState(() {
+      final target =
+          schedule?.scheduleId ??
+          (_currentSlots.length == 1 ? _currentSlots.single.scheduleId : null);
+      if (target != null || !_attendanceVisited || _currentSlots.length > 1) {
+        _attendanceScheduleId = target;
+        _importRevision++;
+      }
+      _attendanceVisited = true;
+      destination = 2;
+    });
+  }
+
   final Map<String, String> _importDates = {};
   bool _attendanceVisited = false;
   int _importRevision = 0;
@@ -67,22 +96,29 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   void initState() {
     super.initState();
     load();
-    _integration.start(widget.repository, widget.lecturer.lecturerId).catchError((
-      Object e,
-    ) {
-      if (mounted) {
-        setState(
-          () => _bridgeError =
-              'Không mở được kết nối extension ở cổng 8765. Đóng bản app khác và đăng nhập lại.',
-        );
-      }
+    _clockTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
     });
+    _integration
+        .start(
+          widget.repository,
+          widget.lecturer.lecturerId,
+          attendanceRepository: _attendanceRepo,
+        )
+        .catchError((Object e) {
+          if (mounted) {
+            setState(
+              () => _bridgeError =
+                  'Không mở được kết nối extension ở cổng 8765. Đóng bản app khác và đăng nhập lại.',
+            );
+          }
+        });
     _importSub = _integration.onImportComplete.listen((
       FapImportResult result,
     ) async {
       if (!mounted) return;
       setState(() {
-        _latestImport = result;
+        _attendanceScheduleId = result.schedule.scheduleId;
         _reportClassKey = result.schedule.key;
         _reportDateOption = '${result.date}|${result.schedule.slot}';
         _importRevision++;
@@ -95,7 +131,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Đã nhận ${result.studentCount} sinh viên · ${result.schedule.classCode}. Buổi vừa nhập được đánh dấu Hiện tại.',
+              'Đã nhận ${result.studentCount} sinh viên · ${result.schedule.classCode}. Đã chọn buổi vừa nhập.',
             ),
           ),
         );
@@ -105,6 +141,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
 
   @override
   void dispose() {
+    _clockTimer?.cancel();
     _importSub?.cancel();
     unawaited(_integration.stop());
     search.dispose();
@@ -290,10 +327,13 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
             ),
           ),
           selectedIndex: destination,
-          onDestinationSelected: (value) => setState(() {
-            destination = value;
-            if (value == 2) _attendanceVisited = true;
-          }),
+          onDestinationSelected: (value) {
+            if (value == 2) {
+              _openAttendance();
+            } else {
+              setState(() => destination = value);
+            }
+          },
           labelType: NavigationRailLabelType.all,
           destinations: const [
             NavigationRailDestination(
@@ -331,6 +371,11 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                       lecturerId: widget.lecturer.lecturerId,
                       repository: widget.repository,
                       onChanged: load,
+                      onOpenReport: (key, date, slot) => setState(() {
+                        _reportClassKey = key;
+                        _reportDateOption = '$date|$slot';
+                        destination = 3;
+                      }),
                     )
                   : const SizedBox.shrink(),
               _attendanceVisited
@@ -340,7 +385,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                       classes: classes,
                       repository: _attendanceRepo,
                       scheduleRepository: widget.repository,
-                      currentScheduleId: _latestImport?.schedule.scheduleId,
+                      currentScheduleId: _attendanceScheduleId,
                       importedDates: Map.of(_importDates),
                       importRevision: _importRevision,
                       onOpenReport: (schedule, session) => setState(() {
@@ -523,10 +568,46 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
               'Chưa có lịch phù hợp. Thêm lịch thủ công hoặc nhập ảnh OCR.',
             ),
           ),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Đang dạy • Giờ Việt Nam',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                if (_currentSlots.isEmpty)
+                  const Text('Hiện không có slot trong thời khóa biểu.'),
+                if (_currentSlots.length > 1)
+                  const Text('Có lịch trùng giờ. Chọn đúng lớp để mở phiên.'),
+                for (final current in _currentSlots)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(
+                      Icons.play_circle_fill,
+                      color: AppPalette.orange,
+                    ),
+                    title: Text(
+                      '${current.subjectCode} · ${current.classCode} · Slot ${current.slot}',
+                    ),
+                    subtitle: Text(
+                      '${current.startTime} – ${current.endTime} · ${current.semester}',
+                    ),
+                    trailing: const Icon(Icons.qr_code),
+                    onTap: () => _openAttendance(current),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
         if (weekly && visible.isNotEmpty)
           WeeklyTimetable(
             schedules: visible,
             onSelect: showLesson,
+            currentScheduleIds: _currentSlots.map((s) => s.scheduleId).toSet(),
             subjectCodes: schedules.map((s) => s.subjectCode).toSet().toList()
               ..sort(),
           ),
@@ -607,6 +688,10 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   }
 
   Future<void> showLesson(Schedule row) async {
+    if (_currentSlots.any((s) => s.scheduleId == row.scheduleId)) {
+      _openAttendance(row);
+      return;
+    }
     final action = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(

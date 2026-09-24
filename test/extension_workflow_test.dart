@@ -84,18 +84,9 @@ void main() {
         }
       });
       await tester.pumpAndSettle();
-      expect(find.text('Hiện tại'), findsOneWidget);
-      expect(find.text('Ngày: 2026-09-18'), findsOneWidget);
-      final cards = find.widgetWithText(Card, 'SWE102 - SE1701');
-      expect(cards, findsOneWidget);
-      expect(
-        tester.getTopLeft(find.text('SWE102 - SE1701')).dy,
-        lessThan(tester.getTopLeft(find.text('PRM393 - SE1848')).dy),
-      );
-      await tester.tap(
-        find.descendant(of: cards, matching: find.text('Tạo phiên')),
-      );
-      await tester.pumpAndSettle();
+      expect(find.text('ĐANG ĐIỂM DANH'), findsOneWidget);
+
+      // Imported session opens automatically.
       expect(find.text('ĐANG ĐIỂM DANH'), findsOneWidget);
       final cls = (await schedules.getClasses()).firstWhere(
         (c) => c.classCode == 'SE1701',
@@ -129,7 +120,7 @@ void main() {
       expect(records.where((r) => r.status == 'ABSENT'), hasLength(1));
       await tester.tap(find.text('Báo cáo / Excel'));
       await tester.pumpAndSettle();
-      expect(find.text('Báo cáo & Xuất file'), findsOneWidget);
+      expect(find.text('Báo cáo & Đồng bộ FAP'), findsOneWidget);
       expect(find.text('Le Thi B'), findsOneWidget);
       await tester.runAsync(() async {
         await tester.tap(find.text('Xuất Excel (.xlsx)'));

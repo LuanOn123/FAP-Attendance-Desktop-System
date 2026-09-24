@@ -36,8 +36,12 @@ class SessionModel {
       startTime: json['startTime']?.toString() ?? '',
       endTime: json['endTime']?.toString() ?? '',
       status: json['status']?.toString() ?? 'OPEN',
-      currentToken: json['currentToken']?.toString() ?? '',
-      currentSecretCode: json['currentSecretCode']?.toString() ?? '',
+      currentToken: (json['currentToken']?.toString() ?? '').split('#').first,
+      currentSecretCode:
+          json['currentSecretCode']?.toString() ??
+          ((json['currentToken']?.toString() ?? '').contains('#')
+              ? json['currentToken'].toString().split('#').last
+              : ''),
       tokenExpiredAt: json['tokenExpiredAt']?.toString() ?? '',
       createdBy: json['createdBy']?.toString() ?? '',
     );

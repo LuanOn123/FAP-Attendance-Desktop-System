@@ -154,68 +154,72 @@ test('Token rotation updates combined token and expiration, only session owner c
   assert.equal(stored[1][7], 'TKN_NEW#222222');
 });
 
-test('Student Check-In validates secret code, enrollment, and rejects duplicates', () => {
+function studentFixture(overrides = {}) {
   const book = createMockBook();
-  context.SpreadsheetApp = {
-    openById: () => book
-  };
-  context.config_ = () => ({ id: 'sheet-id', audience: 'client', domains: ['fpt.edu.vn'] });
-
-  // Create session
-  const session = context.handleSession_(book, { id: 'sheet-id' }, teacher, {
-    action: 'createSession',
-    classId: 'cls-001',
-    date: '2026-09-17',
-    slot: 1,
-    currentToken: 'TKN_VALID',
-    currentSecretCode: '654321',
-    tokenExpiredAt: new Date(Date.now() + 120000).toISOString()
-  });
-
-  // 1. Check-in with wrong secret code fails
-  assert.throws(() => context.handleStudentCheckIn_({
-    sessionId: session.sessionId,
-    token: 'TKN_VALID',
-    secretCode: '999999',
-    studentCode: 'SE181848'
-  }), /Secret Code không chính xác/);
-
-  // 2. Student not enrolled in class fails
-  assert.throws(() => context.handleStudentCheckIn_({
-    sessionId: session.sessionId,
-    token: 'TKN_VALID',
-    secretCode: '654321',
-    studentCode: 'SE180002' // std-002 not enrolled in cls-001
-  }), /không thuộc danh sách lớp học này/);
-
-  // 3. Valid check-in succeeds
-  const checkinResult = context.handleStudentCheckIn_({
-    sessionId: session.sessionId,
-    token: 'TKN_VALID',
-    secretCode: '654321',
-    studentCode: 'SE181848'
-  });
-  assert.equal(checkinResult.ok, true);
-  assert.equal(checkinResult.status, 'PRESENT');
-  assert.equal(checkinResult.studentCode, 'SE181848');
-
-  // 4. Duplicate check-in fails
-  assert.throws(() => context.handleStudentCheckIn_({
-    sessionId: session.sessionId,
-    token: 'TKN_VALID',
-    secretCode: '654321',
-    studentCode: 'SE181848'
-  }), /đã được ghi nhận điểm danh trước đó/);
-
-  // 5. Close session -> check-in rejected
-  context.handleSession_(book, { id: 'sheet-id' }, teacher, {
-    action: 'closeSession',
-    sessionId: session.sessionId
-  });
-  assert.throws(() => context.handleStudentCheckIn_({
-    sessionId: session.sessionId,
-    token: 'TKN_VALID',
-    secretCode: '654321',
-    studentCode: 'SE181848'
-  }), /Phiên điểm danh đã kết thúc/);
+  context.SpreadsheetApp = {openById: () => book};
+  context.config_ = () => ({id: 'sheet-id', webAudience: 'web-client', domains: ['fpt.edu.vn']});
+  let claims = {aud: 'web-client', iss: 'https://accounts.google.com', exp: Math.floor(Date.now()/1000)+3600,
+    email_verified: true, hd: 'fpt.edu.vn', email: 'toannvse181848@fpt.edu.vn', ...overrides};
+  context.UrlFetchApp = {fetch: () => ({getResponseCode: () => 200, getContentText: () => JSON.stringify(claims)})};
+  const session = context.handleSession_(book, {id:'sheet-id'}, teacher, {action:'createSession', classId:'cls-001', date:'2026-09-22', slot:1,
+    startTime:'07:00', endTime:'09:15', currentToken:'VALID_QR', currentSecretCode:'', tokenExpiredAt:new Date(Date.now()+120000).toISOString()});
+  const request = {sessionId: session.sessionId, idToken:'valid-google-id-token-for-tests', token:'VALID_QR', confirmPresent:true};
+  return {book, session, request, claims};
+}
+test('QR needs verified school identity and presence, never trusts supplied MSSV', () => {
+  const {request, book} = studentFixture();
+  assert.throws(() => context.handleStudentCheckIn_({...request, confirmPresent:false}), /xác nhận/);
+  assert.throws(() => context.handleStudentCheckIn_({...request, idToken:''}), /đăng nhập/);
+  assert.throws(() => context.handleStudentCheckIn_({...request, token:'WRONG'}), /QR/);
+  const info = context.handleStudentSession_(request);
+  assert.equal(info.student.studentCode, 'SE181848');
+  assert.equal(info.session.secretEnabled, false);
+  assert.equal(info.session.startTime, '07:00');
+  const result = context.handleStudentCheckIn_({...request, studentCode:'SE180002', email:'spoof@example.com'});
+  assert.equal(result.status, 'PRESENT'); assert.equal(result.studentCode,'SE181848');
+  assert.equal(book.getSheetByName('Attendance').rows[1][2], 'std-001');
+  assert.throws(() => context.handleStudentCheckIn_(request), /đã điểm danh/);
+});
+test('optional secret is a separate credential; QR works without it', () => {
+  const {request, book, session} = studentFixture();
+  assert.throws(() => context.handleStudentCheckIn_({...request, useSecret:true, secretCode:''}), /Secret Code/);
+  context.handleSession_(book, {}, teacher, {action:'rotateToken', sessionId:session.sessionId, currentToken:'NEW_QR', currentSecretCode:'123456', tokenExpiredAt:new Date(Date.now()+120000).toISOString()});
+  assert.throws(() => context.handleStudentCheckIn_({...request, useSecret:true, secretCode:'999999'}), /Secret Code/);
+  assert.equal(context.handleStudentCheckIn_({...request, useSecret:true, secretCode:'123456', token:''}).status, 'PRESENT');
+});
+test('reject expired/malformed expiry, wrong audience/domain/unverified/non-enrolled account', () => {
+  for (const overrides of [{aud:'desktop-client'}, {email:'a@gmail.com'}, {email_verified:false}, {hd:undefined}, {exp:1}, {email:'tranvbse180002@fpt.edu.vn'}]) {
+    const {request} = studentFixture(overrides);
+    assert.throws(() => context.handleStudentCheckIn_(request), /trường|danh sách lớp/);
+  }
+  for (const expiration of ['garbage', new Date(Date.now()-1).toISOString()]) {
+    const {request,book} = studentFixture(); book.getSheetByName('Sessions').rows[1][8] = expiration;
+    assert.throws(() => context.handleStudentCheckIn_(request), /hết hạn/);
+  }
+});
+test('reset atomically archives old session, retains history and invalidates old QR', () => {
+  const {request,book,session} = studentFixture();
+  context.handleStudentCheckIn_(request);
+  const sheet = book.getSheetByName('Sessions'); sheet.getSheetId = () => 42;
+  context.Sheets = {Spreadsheets:{batchUpdate: body => {
+    assert.equal(body.requests.length,2);
+    const [update, append] = body.requests;
+    sheet.rows[update.updateCells.range.startRowIndex][6] = 'RESET';
+    sheet.rows.push(append.appendCells.rows[0].values.map(v=>v.userEnteredValue.stringValue));
+  }}};
+  assert.throws(()=>context.handleSession_(book,{}, {...teacher,lecturerId:'other'},{action:'resetSession',sessionId:session.sessionId}), /quyền/);
+  const fresh=context.handleSession_(book,{},teacher,{action:'resetSession',sessionId:session.sessionId});
+  assert.notEqual(fresh.sessionId,session.sessionId); assert.equal(fresh.currentSecretCode,'');
+  assert.equal(book.getSheetByName('Attendance').rows.length,2);
+  assert.throws(()=>context.handleStudentCheckIn_(request),/reset/);
+  assert.equal(context.handleSession_(book,{},teacher,{action:'resetSession',sessionId:session.sessionId}).sessionId,fresh.sessionId);
+  assert.equal(sheet.rows.length,3);
+  assert.equal(context.handleStudentCheckIn_({...request,sessionId:fresh.sessionId,token:fresh.currentToken}).status,'PRESENT');
+});
+test('create resumes an existing slot and rejects another lecturer class', () => {
+  const {book,session} = studentFixture();
+  const request={action:'createSession',classId:'cls-001',date:'2026-09-22',slot:1};
+  assert.equal(context.handleSession_(book,{},teacher,request).sessionId,session.sessionId);
+  assert.equal(book.getSheetByName('Sessions').rows.length,2);
+  assert.throws(()=>context.handleSession_(book,{}, {...teacher,lecturerId:'other'},request), /giảng viên/);
 });

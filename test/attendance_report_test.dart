@@ -11,6 +11,9 @@ import 'package:fap_attendance/models/session_model.dart';
 import 'package:fap_attendance/repositories/attendance_repository.dart';
 
 class MockAttendanceRepository implements AttendanceRepository {
+  @override
+  Future<SessionModel> resetSession(String sessionId) =>
+      throw UnimplementedError();
   List<SessionModel> sessions = [];
   List<AttendanceRecord> records = [];
 
@@ -304,7 +307,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Verify Header and Title
-      expect(find.text('Báo cáo & Xuất file'), findsOneWidget);
+      expect(find.text('Báo cáo & Đồng bộ FAP'), findsOneWidget);
       expect(find.text('Xuất Excel (.xlsx)'), findsOneWidget);
       expect(find.text('Xuất CSV (.csv)'), findsOneWidget);
 

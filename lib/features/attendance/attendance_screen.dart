@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:math';
+import '../../services/schedule_clock.dart';
 import 'package:flutter/material.dart';
 import '../../core/theme/app_palette.dart';
 import '../../core/app_config.dart';
@@ -53,16 +55,81 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   Timer? _refreshTimer;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _autoStart());
+  }
+
+  void _autoStart() {
+    if (!mounted || isStarting) return;
+    final candidates = widget.schedules
+        .where((s) => s.scheduleId == widget.currentScheduleId)
+        .toList();
+    if (candidates.length == 1) _startSession(candidates.single);
+  }
+
+  Future<void> _resetSession() async {
+    final old = activeSession;
+    if (old == null || isStarting || isClosing) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Điểm danh lại từ đầu?'),
+        content: const Text(
+          'Mã cũ sẽ hết hiệu lực. Sinh viên phải điểm danh lại; lượt cũ được giữ trong lịch sử dữ liệu.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Bắt đầu lại'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() {
+      isStarting = true;
+      errorMessage = null;
+    });
+    try {
+      final fresh = await widget.repository.resetSession(old.sessionId);
+      if (!mounted) return;
+      setState(() {
+        activeSession = fresh;
+        attendanceRecords = [];
+        _pendingAbsences = false;
+      });
+      _startAttendancePolling();
+    } catch (e) {
+      if (mounted) {
+        setState(
+          () => errorMessage = e is AppException
+              ? e.message
+              : 'Không thể bắt đầu lại phiên.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => isStarting = false);
+    }
+  }
+
+  @override
   void didUpdateWidget(covariant AttendanceScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.currentScheduleId != oldWidget.currentScheduleId ||
-        widget.importRevision != oldWidget.importRevision) {
+        widget.importRevision != oldWidget.importRevision ||
+        (activeSession == null && widget.schedules != oldWidget.schedules)) {
       // Leave the existing session on the backend so it can be resumed.
       _refreshTimer?.cancel();
       activeSession = null;
       selectedSchedule = null;
       attendanceRecords = [];
       _pendingAbsences = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _autoStart());
     }
   }
 
@@ -83,11 +150,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
   Future<void> _fetchAttendanceList() async {
     if (activeSession == null) return;
+    final sessionId = activeSession!.sessionId;
     try {
-      final records = await widget.repository.getSessionAttendance(
-        activeSession!.sessionId,
-      );
-      if (mounted) {
+      final records = await widget.repository.getSessionAttendance(sessionId);
+      if (mounted && activeSession?.sessionId == sessionId) {
         setState(() {
           attendanceRecords = records;
         });
@@ -96,6 +162,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   }
 
   Future<void> _startSession(Schedule schedule) async {
+    if (isStarting) return;
+    final revision = widget.importRevision;
     final mapping = ClassMappingService().map(schedule, widget.classes);
     if (mapping.mappedClass == null) {
       setState(() {
@@ -119,12 +187,21 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
     try {
       final importedDate = widget.importedDates[schedule.scheduleId];
-      final date =
-          importedDate ?? DateTime.now().toIso8601String().substring(0, 10);
+      final date = importedDate ?? ScheduleClock.date(ScheduleClock.now());
       final sessions = await widget.repository.getSessionsByClass(classIdToUse);
       final sameSession = sessions
-          .where((s) => s.date == date && s.slot == schedule.slot)
+          .where(
+            (s) =>
+                s.date == date &&
+                s.slot == schedule.slot &&
+                s.status != 'RESET',
+          )
           .toList();
+      if (sameSession.length > 1) {
+        throw const AppException(
+          'Buổi học có nhiều phiên. Kiểm tra dữ liệu trước khi mở.',
+        );
+      }
       // Retry/navigation must resume the existing session, including closed ones.
       var session = sameSession.isNotEmpty
           ? sameSession.first
@@ -138,11 +215,17 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             );
       if (sameSession.isNotEmpty && session.isOpen) {
         final now = DateTime.now();
-        final token = 'TKN_${now.microsecondsSinceEpoch}';
+        final token = List.generate(
+          24,
+          (_) => Random.secure().nextInt(256).toRadixString(16).padLeft(2, '0'),
+        ).join();
         final secret = session.currentSecretCode.isNotEmpty
             ? session.currentSecretCode
-            : session.currentToken.split('#').last;
+            : (session.currentToken.contains('#')
+                  ? session.currentToken.split('#').last
+                  : '');
         final expiresAt = now
+            .toUtc()
             .add(const Duration(seconds: 120))
             .toIso8601String();
         await widget.repository.rotateSessionToken(
@@ -158,7 +241,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         );
       }
 
-      if (mounted) {
+      if (mounted && revision == widget.importRevision) {
         setState(() {
           selectedSchedule = schedule;
           activeSession = session;
@@ -178,7 +261,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         });
       }
     } finally {
-      if (mounted) setState(() => isStarting = false);
+      if (mounted) {
+        setState(() => isStarting = false);
+        if (revision != widget.importRevision) _autoStart();
+      }
     }
   }
 
@@ -443,7 +529,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                                     if (schedule.scheduleId ==
                                         widget.currentScheduleId)
                                       const Chip(
-                                        label: Text('Hiện tại'),
+                                        label: Text('Đã chọn'),
                                         avatar: Icon(Icons.push_pin, size: 16),
                                       ),
                                     if (widget.importedDates[schedule
@@ -525,6 +611,14 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (errorMessage != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Text(
+                  errorMessage!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ),
             // Header Bar
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -568,7 +662,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${schedule.subjectName} · Slot ${schedule.slot} (${schedule.startTime} - ${schedule.endTime}) · Phòng ${schedule.room}',
+                      '${session.date} · Slot ${schedule.slot} (${session.startTime} - ${session.endTime}) · Phòng ${schedule.room}',
                       style: TextStyle(
                         color: Colors.grey.shade700,
                         fontSize: 14,
@@ -607,7 +701,13 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                       icon: const Icon(Icons.list),
                       label: const Text('Danh sách buổi học'),
                     ),
-                    if (session.isOpen)
+                    OutlinedButton.icon(
+                      onPressed: isStarting || isClosing ? null : _resetSession,
+                      icon: const Icon(Icons.restart_alt),
+                      label: const Text('Điểm danh lại từ đầu'),
+                    ),
+                    if (session.isOpen &&
+                        widget.repository is DemoAttendanceRepository)
                       OutlinedButton.icon(
                         onPressed: _openStudentCheckinTest,
                         icon: const Icon(Icons.phone_android),
@@ -650,15 +750,17 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 // QR Display (for Projector)
                 if (session.isOpen)
                   SessionQrDisplayWidget(
+                    key: ValueKey(session.sessionId),
                     sessionId: session.sessionId,
                     initialToken: session.currentToken.split('#').first,
                     initialSecretCode: session.currentSecretCode.isNotEmpty
                         ? session.currentSecretCode
                         : (session.currentToken.contains('#')
                               ? session.currentToken.split('#').last
-                              : '888999'),
+                              : ''),
                     onRotateToken: (newToken, newSecret) async {
                       final expiresAt = DateTime.now()
+                          .toUtc()
                           .add(const Duration(seconds: 120))
                           .toIso8601String();
                       await widget.repository.rotateSessionToken(
@@ -667,7 +769,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                         newSecretCode: newSecret,
                         tokenExpiredAt: expiresAt,
                       );
-                      if (mounted) {
+                      if (mounted &&
+                          activeSession?.sessionId == session.sessionId) {
                         setState(() {
                           activeSession = activeSession!.copyWith(
                             currentToken: '$newToken#$newSecret',

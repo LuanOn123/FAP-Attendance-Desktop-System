@@ -44,8 +44,13 @@
     const date = isoDate(doc.querySelector('input[type="date"]')?.value || label(doc, ["date", "ngay"]));
     const slot = Number(label(doc, ["slot", "ca", "ca hoc"]).match(/\d+/)?.[0]) || null;
     const room = label(doc, ["room", "phong", "phong hoc"]);
-    const startTime = label(doc, ["start time", "bat dau", "gio bat dau"]).match(/\b\d{2}:\d{2}\b/)?.[0] || "";
-    const endTime = label(doc, ["end time", "ket thuc", "gio ket thuc"]).match(/\b\d{2}:\d{2}\b/)?.[0] || "";
+    const clock = value => {
+      const match = String(value || '').match(/\b(\d{1,2}):(\d{2})\b/);
+      return match && +match[1] < 24 && +match[2] < 60 ? match[1].padStart(2, '0') + ':' + match[2] : '';
+    };
+    const range = (label(doc, ['time', 'thoi gian', 'slot', 'ca hoc']) || '').match(/(\d{1,2}:\d{2})\s*[-–—]\s*(\d{1,2}:\d{2})/);
+    const startTime = clock(label(doc, ['start time', 'bat dau', 'gio bat dau'])) || clock(range?.[1]);
+    const endTime = clock(label(doc, ['end time', 'ket thuc', 'gio ket thuc'])) || clock(range?.[2]);
     const students = new Map();
     function add(code, name, email) {
       code = code.trim().toUpperCase(); name = name.trim(); email = (email || "").trim().toLowerCase();

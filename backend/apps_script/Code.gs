@@ -15,7 +15,7 @@ function config_() {
   const id = p.getProperty('SPREADSHEET_ID');
   const audience = p.getProperty('GOOGLE_CLIENT_ID');
   if (!id || !audience) throw new Error('Máy chủ chưa cấu hình SPREADSHEET_ID / GOOGLE_CLIENT_ID.');
-  return {id, audience, domains: (p.getProperty('SCHOOL_DOMAINS') || 'fpt.edu.vn,fe.edu.vn').split(',').map(s => s.trim().toLowerCase())};
+  return {id, audience, webAudience: p.getProperty('GOOGLE_WEB_CLIENT_ID') || '', domains: (p.getProperty('SCHOOL_DOMAINS') || 'fpt.edu.vn,fe.edu.vn').split(',').map(s => s.trim().toLowerCase())};
 }
 
 /** Run manually as spreadsheet owner, never exposed through doPost. */
@@ -137,6 +137,21 @@ function handleSession_(book, cfg, lecturer, request) {
   if (!lock.tryLock(15000)) throw new Error('Máy chủ đang bận. Thử lại sau.');
   try {
     const sessions = read_(book, 'Sessions');
+    if (request.action === 'resetSession') {
+      const oldIndex = sessions.rows.findIndex(row => row.sessionId === request.sessionId);
+      const old = sessions.rows[oldIndex];
+      if (!old || old.createdBy !== lecturer.lecturerId) throw new Error('Không có quyền reset phiên này.');
+      const successor = sessions.rows.find(row => row.sessionId !== old.sessionId && row.classId === old.classId && row.date === old.date && row.slot === old.slot && row.status !== 'RESET');
+      if (old.status === 'RESET' && successor) return sessionView_(successor);
+      if (old.status === 'RESET') throw new Error('Phiên đã reset. Tải lại danh sách phiên.');
+      if (successor) throw new Error('Buổi học đang có nhiều phiên. Kiểm tra trước khi reset.');
+      const fresh = {...old, sessionId: Utilities.getUuid(), status: 'OPEN', currentToken: Utilities.getUuid(), tokenExpiredAt: new Date(Date.now() + 120000).toISOString()};
+      Sheets.Spreadsheets.batchUpdate({requests: [
+        {updateCells: {range: {sheetId: sessions.sheet.getSheetId(), startRowIndex: oldIndex + 1, endRowIndex: oldIndex + 2, startColumnIndex: 6, endColumnIndex: 7}, rows: [{values: [{userEnteredValue: {stringValue: 'RESET'}}]}], fields: 'userEnteredValue'}},
+        {appendCells: {sheetId: sessions.sheet.getSheetId(), rows: [{values: SCHEMA.Sessions.map(key => ({userEnteredValue: {stringValue: String(fresh[key] || '')}}))}], fields: 'userEnteredValue'}}
+      ]}, cfg.id);
+      return sessionView_(fresh);
+    }
     if (request.action === 'createSession') {
       const classId = String(request.classId || '').trim();
       const slot = String(request.slot || '').trim();
@@ -148,6 +163,10 @@ function handleSession_(book, cfg, lecturer, request) {
       const expiredAt = String(request.tokenExpiredAt || '').trim();
 
       if (!classId || !date || !slot) throw new Error('Thiếu thông tin tạo phiên điểm danh.');
+      if (!read_(book, 'Classes').rows.some(c => c.classId === classId && c.lecturerId === lecturer.lecturerId)) throw new Error('Lớp không thuộc giảng viên.');
+      const existing = sessions.rows.filter(r => r.classId === classId && r.date === date && r.slot === slot && r.status !== 'RESET');
+      if (existing.length > 1) throw new Error('Buổi học có nhiều phiên. Cần kiểm tra dữ liệu.');
+      if (existing.length) return sessionView_(existing[0]);
       const sessionId = Utilities.getUuid();
       const combinedToken = secret ? (token + '#' + secret) : token;
 
@@ -182,6 +201,7 @@ function handleSession_(book, cfg, lecturer, request) {
       const index = sessions.rows.findIndex(r => r.sessionId === sessionId);
       if (index === -1) throw new Error('Không tìm thấy phiên điểm danh.');
       if (sessions.rows[index].createdBy !== lecturer.lecturerId) throw new Error('Không có quyền sửa phiên điểm danh này.');
+      if (sessions.rows[index].status !== 'OPEN') throw new Error('Phiên không còn mở.');
 
       const combinedToken = secret ? (token + '#' + secret) : token;
       const rowIndex = index + 2;
@@ -207,6 +227,7 @@ function handleSession_(book, cfg, lecturer, request) {
 
     if (request.action === 'getSessionAttendance') {
       const sessionId = String(request.sessionId || '').trim();
+      if (!sessions.rows.some(s => s.sessionId === sessionId && s.createdBy === lecturer.lecturerId)) throw new Error('Không có quyền đọc phiên.');
       const attendance = read_(book, 'Attendance').rows.filter(r => r.sessionId === sessionId);
       const students = read_(book, 'Students').rows;
       const studentMap = new Map(students.map(s => [s.studentId, s]));
@@ -228,14 +249,14 @@ function handleSession_(book, cfg, lecturer, request) {
         const rowClassId = String(r.classId || '').trim().toUpperCase();
         if (!rowClassId) return false;
         const matchesLecturer = (r.createdBy === lecturer.lecturerId || !r.createdBy);
-        const matchesClass = (rowClassId === targetId || rowClassId.includes(targetId) || targetId.includes(rowClassId));
+        const matchesClass = rowClassId === targetId && r.status !== 'RESET';
         return matchesLecturer && matchesClass;
       });
     }
 
     if (request.action === 'getClassHistory') {
       const classId = String(request.classId || '').trim();
-      const classSessions = sessions.rows.filter(r => r.classId === classId);
+      const classSessions = sessions.rows.filter(r => r.classId === classId && r.createdBy === lecturer.lecturerId && r.status !== 'RESET');
       const sessionIds = new Set(classSessions.map(s => s.sessionId));
       const attendance = read_(book, 'Attendance').rows.filter(r => sessionIds.has(r.sessionId));
       const students = read_(book, 'Students').rows;
@@ -251,7 +272,7 @@ function handleSession_(book, cfg, lecturer, request) {
     }
 
     if (request.action === 'getLecturerClasses') {
-      const lecturerId = String(request.lecturerId || lecturer.lecturerId).trim();
+      const lecturerId = lecturer.lecturerId;
       return read_(book, 'Classes').rows.filter(r => r.lecturerId === lecturerId);
     }
 
@@ -259,13 +280,15 @@ function handleSession_(book, cfg, lecturer, request) {
       const attendanceId = String(request.attendanceId || '').trim();
       const status = String(request.status || '').trim().toUpperCase();
       const note = String(request.note || '').trim();
-      const updatedBy = String(request.updatedBy || lecturer.email).trim();
+      const updatedBy = lecturer.email;
       const nowIso = new Date().toISOString();
 
       const attendance = read_(book, 'Attendance');
       const index = attendance.rows.findIndex(r => r.attendanceId === attendanceId);
       if (index === -1) throw new Error('Không tìm thấy bản ghi điểm danh.');
 
+      const owned = sessions.rows.find(s => s.sessionId === attendance.rows[index].sessionId && s.createdBy === lecturer.lecturerId && s.status !== 'RESET');
+      if (!owned || !['PRESENT', 'LATE', 'ABSENT'].includes(status)) throw new Error('Không có quyền sửa bản ghi hoặc trạng thái không hợp lệ.');
       const rowIndex = index + 2;
       const statusCol = SCHEMA.Attendance.indexOf('status') + 1;
       const noteCol = SCHEMA.Attendance.indexOf('note') + 1;
@@ -282,7 +305,10 @@ function handleSession_(book, cfg, lecturer, request) {
     if (request.action === 'markAbsent') {
       const sessionId = String(request.sessionId || '').trim();
       const studentCodes = Array.isArray(request.studentCodes) ? request.studentCodes : [];
-      const markedBy = String(request.markedBy || lecturer.email).trim();
+      const markedBy = lecturer.email;
+      const owned = sessions.rows.find(s => s.sessionId === sessionId && s.createdBy === lecturer.lecturerId && s.status === 'CLOSED');
+      if (!owned) throw new Error('Chỉ chốt vắng cho phiên đã đóng của bạn.');
+      const enrollmentIds = new Set(read_(book, 'Enrollments').rows.filter(e => e.classId === owned.classId).map(e => e.studentId));
       const nowIso = new Date().toISOString();
 
       const attendance = read_(book, 'Attendance');
@@ -292,7 +318,7 @@ function handleSession_(book, cfg, lecturer, request) {
       const newRows = [];
       studentCodes.forEach(code => {
         const student = studentMap.get(code);
-        if (student) {
+        if (student && enrollmentIds.has(student.studentId)) {
           const already = attendance.rows.some(a => a.sessionId === sessionId && a.studentId === student.studentId);
           if (!already) {
             const newRecord = {
@@ -320,95 +346,63 @@ function handleSession_(book, cfg, lecturer, request) {
   } finally { lock.releaseLock(); }
 }
 
+function sessionView_(session) {
+  const [currentToken, currentSecretCode = ''] = String(session.currentToken || '').split('#');
+  return {...session, currentToken, currentSecretCode};
+}
+
+function authenticateStudent_(idToken, cfg, book) {
+  if (!cfg.webAudience) throw new Error('Máy chủ chưa cấu hình GOOGLE_WEB_CLIENT_ID.');
+  if (typeof idToken !== 'string' || idToken.length < 20 || idToken.length > 10000) throw new Error('Vui lòng đăng nhập email trường.');
+  const response = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(idToken), {muteHttpExceptions: true});
+  if (response.getResponseCode() !== 200) throw new Error('Phiên Google không hợp lệ. Đăng nhập lại.');
+  const claims = JSON.parse(response.getContentText());
+  const email = String(claims.email || '').trim().toLowerCase();
+  if (claims.aud !== cfg.webAudience || !['accounts.google.com', 'https://accounts.google.com'].includes(claims.iss) ||
+      !Number.isFinite(Number(claims.exp)) || Number(claims.exp) <= Date.now()/1000 ||
+      ![true, 'true'].includes(claims.email_verified) || !cfg.domains.includes(email.split('@')[1]) || !cfg.domains.includes(claims.hd)) throw new Error('Chỉ tài khoản Google email trường đã xác minh được phép điểm danh.');
+  const matches = read_(book, 'Students').rows.filter(s => String(s.schoolEmail).trim().toLowerCase() === email);
+  if (matches.length !== 1) throw new Error('Email trường chưa có trong danh sách sinh viên hoặc đang bị trùng. Liên hệ giảng viên.');
+  return matches[0];
+}
+function studentContext_(request, cfg, book) {
+  const student = authenticateStudent_(request.idToken, cfg, book);
+  const session = read_(book, 'Sessions').rows.find(s => s.sessionId === request.sessionId);
+  if (!session) throw new Error('Phiên điểm danh không tồn tại.');
+  if (session.status !== 'OPEN') throw new Error('Phiên đã kết thúc hoặc được reset. Quét mã mới.');
+  if (!read_(book, 'Enrollments').rows.some(e => e.classId === session.classId && e.studentId === student.studentId)) throw new Error('Email của bạn không thuộc danh sách lớp của buổi học này.');
+  const cls = read_(book, 'Classes').rows.find(c => c.classId === session.classId);
+  if (!cls) throw new Error('Không tìm thấy lớp học.');
+  return {student, session, cls};
+}
+function handleStudentSession_(request) {
+  const cfg = config_(), book = SpreadsheetApp.openById(cfg.id);
+  const {student, session, cls} = studentContext_(request, cfg, book);
+  return {student: {fullName: student.fullName, studentCode: student.studentCode, email: student.schoolEmail},
+    session: {sessionId: session.sessionId, classCode: cls.classCode, subjectCode: cls.subjectCode,
+      date: session.date, slot: session.slot, startTime: session.startTime, endTime: session.endTime,
+      secretEnabled: !!sessionView_(session).currentSecretCode}};
+}
 function handleStudentCheckIn_(request) {
-  const sessionId = String(request.sessionId || '').trim();
-  const token = String(request.token || '').trim();
-  const secretCode = String(request.secretCode || '').trim();
-  const studentCode = String(request.studentCode || '').trim().toUpperCase();
-  const email = String(request.email || '').trim().toLowerCase();
-
-  if (!sessionId || !studentCode || !secretCode) {
-    throw new Error('Vui lòng điền đầy đủ mã sinh viên và Secret Code.');
-  }
-
-  const cfg = config_();
-  const book = SpreadsheetApp.openById(cfg.id);
+  if (request.confirmPresent !== true) throw new Error('Bạn phải xác nhận đang có mặt trong lớp để điểm danh.');
+  const cfg = config_(), book = SpreadsheetApp.openById(cfg.id);
   const lock = LockService.getScriptLock();
-  if (!lock.tryLock(15000)) throw new Error('Hệ thống đang bận ghi nhận điểm danh. Vui lòng bấm thử lại.');
-
+  if (!lock.tryLock(15000)) throw new Error('Hệ thống đang bận. Thử lại.');
   try {
-    const sessions = read_(book, 'Sessions');
-    const session = sessions.rows.find(r => r.sessionId === sessionId);
-    if (!session) throw new Error('Phiên điểm danh không tồn tại.');
-    if (String(session.status).toUpperCase() !== 'OPEN') throw new Error('Phiên điểm danh đã kết thúc.');
-
-    const parts = String(session.currentToken || '').split('#');
-    const expectedToken = parts[0] || '';
-    const expectedSecret = parts[1] || '';
-
-    if (expectedSecret && secretCode !== expectedSecret) {
-      throw new Error('Secret Code không chính xác. Vui lòng nhìn lại trên màn hình máy chiếu.');
-    }
-
-    if (token && expectedToken && token !== expectedToken) {
-      const expiredTime = new Date(session.tokenExpiredAt).getTime();
-      const now = Date.now();
-      if (!isNaN(expiredTime) && now > expiredTime + 30000) {
-        throw new Error('Mã QR đã hết hạn. Vui lòng quét lại mã mới nhất trên máy chiếu.');
-      }
-    }
-
-    const students = read_(book, 'Students').rows;
-    let student = students.find(s => String(s.studentCode).trim().toUpperCase() === studentCode);
-    if (!student && email) {
-      student = students.find(s => String(s.schoolEmail).trim().toLowerCase() === email);
-    }
-    if (!student) {
-      throw new Error('Không tìm thấy thông tin sinh viên với mã: ' + studentCode);
-    }
-
-    const enrollments = read_(book, 'Enrollments').rows;
-    const isEnrolled = enrollments.some(e => e.classId === session.classId && e.studentId === student.studentId);
-    if (!isEnrolled) {
-      throw new Error('Sinh viên ' + studentCode + ' không thuộc danh sách lớp học này.');
-    }
-
+    const {student, session} = studentContext_(request, cfg, book);
+    const view = sessionView_(session);
+    const expires = new Date(session.tokenExpiredAt).getTime();
+    if (!Number.isFinite(expires) || Date.now() >= expires) throw new Error('Mã điểm danh đã hết hạn. Quét mã mới hoặc nhập Secret Code hiện tại.');
+    if (request.useSecret === true) {
+      if (!view.currentSecretCode || String(request.secretCode || '') !== view.currentSecretCode) throw new Error('Secret Code chưa được bật hoặc không chính xác.');
+    } else if (!view.currentToken || String(request.token || '') !== view.currentToken) throw new Error('Mã QR không hợp lệ hoặc đã thay đổi. Quét mã mới.');
     const attendance = read_(book, 'Attendance');
-    const already = attendance.rows.some(a => a.sessionId === sessionId && a.studentId === student.studentId);
-    if (already) {
-      throw new Error('Sinh viên ' + studentCode + ' đã được ghi nhận điểm danh trước đó.');
-    }
-
-    let status = 'PRESENT';
-    const now = new Date();
-    const nowIso = now.toISOString();
-
-    const attendanceId = Utilities.getUuid();
-    const newRecord = {
-      attendanceId: attendanceId,
-      sessionId: sessionId,
-      studentId: student.studentId,
-      status: status,
-      checkInTime: nowIso,
-      updatedAt: nowIso,
-      note: 'Self QR Check-in',
-      updatedBy: student.studentCode
-    };
-
-    attendance.sheet.appendRow(SCHEMA.Attendance.map(k => String(newRecord[k] || '')));
-
-    const logs = book.getSheetByName('SyncLogs');
-    if (logs) {
-      logs.appendRow([Utilities.getUuid(), 'studentCheckIn', student.schoolEmail || student.studentCode, nowIso, 'Check-in ' + status + ' for class ' + session.classId]);
-    }
-
-    return {
-      ok: true,
-      status: status,
-      checkInTime: nowIso,
-      studentCode: student.studentCode,
-      fullName: student.fullName
-    };
+    if (attendance.rows.some(a => a.sessionId === session.sessionId && a.studentId === student.studentId)) throw new Error('Bạn đã điểm danh trong phiên này.');
+    const nowIso = new Date().toISOString();
+    const record = {attendanceId: Utilities.getUuid(), sessionId: session.sessionId, studentId: student.studentId,
+      status: 'PRESENT', checkInTime: nowIso, updatedAt: nowIso, note: 'Google verified; presence confirmed', updatedBy: student.schoolEmail};
+    attendance.sheet.appendRow(SCHEMA.Attendance.map(key => String(record[key] || '')));
+    return {status: record.status, checkInTime: nowIso, studentCode: student.studentCode, fullName: student.fullName};
   } finally { lock.releaseLock(); }
 }
 
@@ -420,7 +414,7 @@ function handle_(request) {
   if (['getRoster', 'importRoster'].includes(request.action)) {
     return handleRoster_(book, cfg, lecturer, request);
   }
-  if (['createSession', 'rotateToken', 'closeSession', 'getSessionAttendance', 'getSessionsByClass', 'getClassHistory', 'updateAttendance', 'markAbsent', 'getLecturerClasses'].includes(request.action)) {
+  if (['resetSession', 'createSession', 'rotateToken', 'closeSession', 'getSessionAttendance', 'getSessionsByClass', 'getClassHistory', 'updateAttendance', 'markAbsent', 'getLecturerClasses'].includes(request.action)) {
     return handleSession_(book, cfg, lecturer, request);
   }
   if (request.action === 'getRows') {
@@ -535,7 +529,9 @@ function doPost(e) {
     if (!text || text.length > 200000) throw new Error('Yêu cầu trống hoặc quá lớn.');
     const request = JSON.parse(text);
     if (!request || typeof request !== 'object' || Array.isArray(request)) throw new Error('Yêu cầu không hợp lệ.');
-    if (request.action === 'studentCheckIn') {
+    if (request.action === 'studentSessionInfo') {
+      result = {ok: true, data: handleStudentSession_(request)};
+    } else if (request.action === 'studentCheckIn') {
       result = {ok: true, data: handleStudentCheckIn_(request)};
     } else {
       result = {ok: true, data: handle_(request)};

@@ -7,11 +7,13 @@ class WeeklyTimetable extends StatelessWidget {
   final List<Schedule> schedules;
   final ValueChanged<Schedule> onSelect;
   final List<String>? subjectCodes;
+  final Set<String> currentScheduleIds;
   const WeeklyTimetable({
     super.key,
     required this.schedules,
     required this.onSelect,
     this.subjectCodes,
+    this.currentScheduleIds = const {},
   });
   static const palette = [
     AppPalette.orange,
@@ -188,6 +190,14 @@ class WeeklyTimetable extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        if (currentScheduleIds.contains(s.scheduleId))
+                          const Text(
+                            '● ĐANG DẠY',
+                            style: TextStyle(
+                              color: AppPalette.orangeDark,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
                         Text(
                           '${s.startTime} – ${s.endTime}',
                           style: TextStyle(

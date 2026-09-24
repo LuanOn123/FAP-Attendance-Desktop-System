@@ -47,7 +47,14 @@
       ['môn', data.course.courseCode, m.courseCode], ['lớp', data.class.classCode, m.classCode],
       ['ngày', data.session.date, m.date], ['slot', data.session.slot, m.slot],
     ]) if (!actual || String(actual).toUpperCase() !== String(expected).toUpperCase()) throw new Error(`Sai hoặc thiếu ${label} trên trang. Excel: ${expected}; trang: ${actual || 'chưa xác định'}.`);
+    if (payload.source === 'desktop') {
+      for (const key of ['startTime', 'endTime']) {
+        const time = value => { const match = String(value || '').match(/^(\d{1,2}):(\d{2})$/); return match && +match[1] < 24 && +match[2] < 60 ? +match[1] * 60 + +match[2] : null; };
+        if (time(m[key]) === null || time(data.session[key]) !== time(m[key])) throw new Error('Giờ học trên trang không khớp báo cáo desktop.');
+      }
+    }
     const rows = rowsByCode(doc), seen = new Set();
+    if (payload.source === 'desktop' && rows.size !== payload.entries.length) throw new Error('Danh sách sinh viên trên trang và app không trùng nhau.');
     for (const entry of payload.entries) {
       if (!/^[A-Z]{2,6}\d{4,10}$/.test(entry.studentCode) || !['present', 'absent'].includes(entry.status) || seen.has(entry.studentCode)) throw new Error('MSSV/trạng thái không hợp lệ hoặc bị trùng.');
       seen.add(entry.studentCode);

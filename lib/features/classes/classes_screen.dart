@@ -6,6 +6,7 @@ import '../../models/roster.dart';
 import '../../models/schedule.dart';
 import '../../repositories/schedule_repository.dart';
 import '../../services/markbook_reader.dart';
+import '../../services/schedule_clock.dart';
 
 class ClassesScreen extends StatefulWidget {
   final List<ClassModel> classes;
@@ -13,6 +14,7 @@ class ClassesScreen extends StatefulWidget {
   final String lecturerId;
   final ScheduleRepository repository;
   final Future<void> Function() onChanged;
+  final void Function(String classKey, String date, int slot)? onOpenReport;
   const ClassesScreen({
     super.key,
     required this.classes,
@@ -20,6 +22,7 @@ class ClassesScreen extends StatefulWidget {
     required this.lecturerId,
     required this.repository,
     required this.onChanged,
+    this.onOpenReport,
   });
   @override
   State<ClassesScreen> createState() => _ClassesScreenState();
@@ -144,6 +147,80 @@ class _ClassesScreenState extends State<ClassesScreen> {
             const Text(
               'Lớp chưa có sinh viên. Chọn Nhập sinh viên từ Excel / ODS để thêm danh sách.',
             ),
+          Text('Học kỳ: ${selected.semester}'),
+          const SizedBox(height: 16),
+          Text(
+            'Các slot sắp tới',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          for (final lesson
+              in (widget.schedules.where((s) => s.key == selected.key).toList()
+                ..sort(
+                  (a, b) =>
+                      ScheduleClock.next(a).compareTo(ScheduleClock.next(b)),
+                )))
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.event_available),
+              title: Text(
+                'Slot ${lesson.slot} · ${ScheduleClock.date(ScheduleClock.next(lesson))}',
+              ),
+              subtitle: Text(
+                '${lesson.startTime} – ${lesson.endTime} · ${lesson.room}',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: widget.onOpenReport == null
+                  ? null
+                  : () => widget.onOpenReport!(
+                      selected.key,
+                      ScheduleClock.date(ScheduleClock.next(lesson)),
+                      lesson.slot,
+                    ),
+            ),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.history),
+            label: const Text('Xem điểm danh theo ngày'),
+            onPressed: widget.onOpenReport == null
+                ? null
+                : () async {
+                    final day = await showDatePicker(
+                      context: context,
+                      initialDate: DateTime.now(),
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime(2100),
+                    );
+                    if (day == null || !context.mounted) return;
+                    final slots =
+                        widget.schedules
+                            .where((s) => s.key == selected.key)
+                            .map((s) => s.slot)
+                            .toSet()
+                            .toList()
+                          ..sort();
+                    if (slots.isEmpty) return;
+                    final slot = await showDialog<int>(
+                      context: context,
+                      builder: (ctx) => SimpleDialog(
+                        title: const Text('Chọn slot'),
+                        children: [
+                          for (final slot in slots)
+                            SimpleDialogOption(
+                              onPressed: () => Navigator.pop(ctx, slot),
+                              child: Text('Slot $slot'),
+                            ),
+                        ],
+                      ),
+                    );
+                    if (slot != null && mounted) {
+                      widget.onOpenReport!(
+                        selected.key,
+                        ScheduleClock.date(day),
+                        slot,
+                      );
+                    }
+                  },
+          ),
+          const SizedBox(height: 20),
           if (students.isNotEmpty) StudentTable(students: students),
         ],
       ],
