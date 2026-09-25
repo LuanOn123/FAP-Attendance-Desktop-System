@@ -180,10 +180,12 @@ test('QR needs verified school identity and presence, never trusts supplied MSSV
   assert.equal(book.getSheetByName('Attendance').rows[1][2], 'std-001');
   assert.throws(() => context.handleStudentCheckIn_(request), /đã điểm danh/);
 });
-test('optional secret is a separate credential; QR works without it', () => {
+test('enabled secret requires Google and code even with a valid QR', () => {
   const {request, book, session} = studentFixture();
   assert.throws(() => context.handleStudentCheckIn_({...request, useSecret:true, secretCode:''}), /Secret Code/);
   context.handleSession_(book, {}, teacher, {action:'rotateToken', sessionId:session.sessionId, currentToken:'NEW_QR', currentSecretCode:'123456', tokenExpiredAt:new Date(Date.now()+120000).toISOString()});
+  assert.throws(() => context.handleStudentCheckIn_({...request, token:'NEW_QR', useSecret:false}), /Secret Code/);
+  assert.throws(() => context.handleStudentCheckIn_({...request, idToken:'', secretCode:'123456'}), /đăng nhập/);
   assert.throws(() => context.handleStudentCheckIn_({...request, useSecret:true, secretCode:'999999'}), /Secret Code/);
   assert.equal(context.handleStudentCheckIn_({...request, useSecret:true, secretCode:'123456', token:''}).status, 'PRESENT');
 });
@@ -214,6 +216,7 @@ test('reset atomically archives old session, retains history and invalidates old
   assert.throws(()=>context.handleStudentCheckIn_(request),/reset/);
   assert.equal(context.handleSession_(book,{},teacher,{action:'resetSession',sessionId:session.sessionId}).sessionId,fresh.sessionId);
   assert.equal(sheet.rows.length,3);
+  assert.throws(() => context.handleSession_(book,{},teacher,{action:'closeSession',sessionId:session.sessionId}), /thay thế/);
   assert.equal(context.handleStudentCheckIn_({...request,sessionId:fresh.sessionId,token:fresh.currentToken}).status,'PRESENT');
 });
 test('create resumes an existing slot and rejects another lecturer class', () => {
@@ -222,4 +225,34 @@ test('create resumes an existing slot and rejects another lecturer class', () =>
   assert.equal(context.handleSession_(book,{},teacher,request).sessionId,session.sessionId);
   assert.equal(book.getSheetByName('Sessions').rows.length,2);
   assert.throws(()=>context.handleSession_(book,{}, {...teacher,lecturerId:'other'},request), /giảng viên/);
+});
+
+test('localized sheet dates preserve a closed session instead of creating another', () => {
+  const {book,session} = studentFixture();
+  const row = book.getSheetByName('Sessions').rows[1];
+  row[2] = '22/9/2026'; row[6] = 'CLOSED';
+  const result = context.handleSession_(book,{},teacher,{action:'createSession',classId:'cls-001',date:'2026-09-22',slot:1});
+  assert.equal(result.sessionId,session.sessionId);
+  assert.equal(result.status,'CLOSED');
+  assert.equal(book.getSheetByName('Sessions').rows.length,2);
+});
+
+test('typed Sheets date takes priority over a US-formatted display date', () => {
+  const {book,session} = studentFixture();
+  const sheet = book.getSheetByName('Sessions');
+  sheet.rows[1][2] = '9/22/2026'; sheet.rows[1][6] = 'CLOSED';
+  const raw = sheet.rows.map(row => [...row]);
+  raw[1][2] = new Date('2026-09-21T17:00:00Z');
+  raw[1][8] = new Date('2026-09-22T02:00:00Z');
+  sheet.getDataRange = () => ({getDisplayValues:()=>sheet.rows.map(row=>[...row]),getValues:()=>raw});
+  context.Utilities.formatDate = (date,zone,format) => {
+    assert.equal(date.toISOString(),'2026-09-21T17:00:00.000Z');
+    assert.equal(zone,'Asia/Ho_Chi_Minh'); assert.equal(format,'yyyy-MM-dd');
+    return '2026-09-22';
+  };
+  const result = context.handleSession_(book,{},teacher,{action:'createSession',classId:'cls-001',date:'2026-09-22',slot:1});
+  assert.equal(result.sessionId,session.sessionId);
+  assert.equal(result.status,'CLOSED');
+  assert.equal(result.tokenExpiredAt,'2026-09-22T02:00:00.000Z');
+  assert.equal(sheet.rows.length,2);
 });

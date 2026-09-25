@@ -14,7 +14,8 @@ import '../../repositories/schedule_repository.dart';
 import '../../repositories/attendance_repository.dart';
 import '../../services/class_mapping_service.dart';
 import 'session_qr_widget.dart';
-import 'student_checkin_screen.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../services/student_checkin_url.dart';
 
 class AttendanceScreen extends StatefulWidget {
   final Lecturer lecturer;
@@ -26,6 +27,7 @@ class AttendanceScreen extends StatefulWidget {
   final Map<String, String> importedDates;
   final void Function(Schedule schedule, SessionModel session)? onOpenReport;
   final int importRevision;
+  final DateTime Function()? clock;
 
   const AttendanceScreen({
     super.key,
@@ -38,6 +40,7 @@ class AttendanceScreen extends StatefulWidget {
     this.importedDates = const {},
     this.onOpenReport,
     this.importRevision = 0,
+    this.clock,
   });
 
   @override
@@ -61,7 +64,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   }
 
   void _autoStart() {
-    if (!mounted || isStarting) return;
+    if (!mounted || isStarting || isClosing || activeSession != null) return;
     final candidates = widget.schedules
         .where((s) => s.scheduleId == widget.currentScheduleId)
         .toList();
@@ -162,7 +165,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   }
 
   Future<void> _startSession(Schedule schedule) async {
-    if (isStarting) return;
+    if (isStarting || isClosing) return;
     final revision = widget.importRevision;
     final mapping = ClassMappingService().map(schedule, widget.classes);
     if (mapping.mappedClass == null) {
@@ -187,7 +190,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
     try {
       final importedDate = widget.importedDates[schedule.scheduleId];
-      final date = importedDate ?? ScheduleClock.date(ScheduleClock.now());
+      final date =
+          importedDate ??
+          ScheduleClock.date(ScheduleClock.now(widget.clock?.call()));
       final sessions = await widget.repository.getSessionsByClass(classIdToUse);
       final sameSession = sessions
           .where(
@@ -369,16 +374,32 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
   Future<void> _openStudentCheckinTest() async {
     if (activeSession == null) return;
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => StudentCheckinScreen(
-          sessionId: activeSession!.sessionId,
-          token: activeSession!.currentToken.split('#').first,
+    final session = activeSession!;
+    try {
+      final opened = await launchUrl(
+        studentCheckinUrl(
+          sessionId: session.sessionId,
+          token: session.currentToken.split('#').first,
+          secretEnabled: session.currentSecretCode.isNotEmpty,
         ),
-      ),
-    );
-    if (mounted) _fetchAttendanceList();
+        mode: LaunchMode.externalApplication,
+      );
+      if (!opened) {
+        throw const AppException(
+          'Không mở được trình duyệt. Hãy quét QR bằng điện thoại.',
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Không mở được trình duyệt. Hãy quét QR bằng điện thoại.',
+            ),
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -706,12 +727,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                       icon: const Icon(Icons.restart_alt),
                       label: const Text('Điểm danh lại từ đầu'),
                     ),
-                    if (session.isOpen &&
-                        widget.repository is DemoAttendanceRepository)
+                    if (session.isOpen)
                       OutlinedButton.icon(
                         onPressed: _openStudentCheckinTest,
                         icon: const Icon(Icons.phone_android),
-                        label: const Text('Mở Test Check-in'),
+                        label: const Text('Mở trang sinh viên'),
                       ),
                     const SizedBox(width: 12),
                     if (session.isOpen)

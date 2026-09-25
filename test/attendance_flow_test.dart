@@ -154,14 +154,12 @@ void main() {
       final client = HttpClient();
       try {
         for (final origin in [
-          'chrome-extension://' + 'a' * 32,
+          'chrome-extension://${'a' * 32}',
           'https://fap.fpt.edu.vn',
         ]) {
           final request = await client.postUrl(
             Uri.parse(
-              'http://127.0.0.1:' +
-                  bridge.port.toString() +
-                  '/api/integration/fap/report',
+              'http://127.0.0.1:${bridge.port}/api/integration/fap/report',
             ),
           );
           request.headers.contentType = ContentType.json;
@@ -175,8 +173,9 @@ void main() {
           );
           final body =
               jsonDecode(await utf8.decoder.bind(response).join()) as Map;
-          if (response.statusCode == 200)
+          if (response.statusCode == 200) {
             expect(body['data']['sessionId'], session.sessionId);
+          }
         }
       } finally {
         client.close(force: true);

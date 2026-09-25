@@ -3,7 +3,8 @@
 ## Những thay đổi đã thực hiện
 
 - Thời khóa biểu đánh dấu slot đang dạy theo UTC+7, gồm giờ bắt đầu và không gồm giờ kết thúc. Bấm slot đang dạy hoặc mục Điểm danh sẽ mở/resume phiên. Nếu nhiều lịch trùng giờ/học kỳ, chọn đúng lớp; không tự chọn ngẫu nhiên. Lịch hiện tại là lịch tuần; dữ liệu chưa có ngày bắt đầu/kết thúc học kỳ.
-- QR độc lập với Secret Code. Mặc định tắt Secret Code; giảng viên mở bằng công tắc. Mã đổi mỗi 120 giây. Đổi mã thất bại sẽ ẩn QR và cho thử lại.
+- Cả hai chế độ đều đăng nhập Google. Mặc định tắt Secret Code; khi giảng viên bật, máy chủ bắt buộc thêm mã Secret dù sinh viên gửi QR hợp lệ. Trang sinh viên tự hiện ô mã theo trạng thái máy chủ. Mã đổi mỗi 120 giây. Trong lúc đổi mã hoặc khi đổi thất bại, QR bị ẩn.
+- Chuyển tab không khởi tạo lại phiên hiện tại. Phiên CLOSED được giữ nguyên; chỉ nút Điểm danh lại từ đầu tạo phiên thay thế. Ngày Sessions từ Google Sheets được chuẩn hóa để nhận lại đúng buổi học khi tải lại.
 - Điểm danh lại tạo phiên mới, đánh dấu phiên cũ RESET. Bản ghi cũ còn trong Sheets để truy vết, không nhập vào báo cáo mới. QR cũ không sử dụng được.
 - Lớp học có học kỳ, số sinh viên, các slot sắp tới và truy cập báo cáo theo ngày/slot. Ngày chưa có phiên không bị thay bằng phiên gần nhất hoặc gán cả lớp vắng.
 - Sinh viên đăng nhập Google email trường. Backend kiểm tra chữ ký qua Google tokeninfo, audience, issuer, thời hạn, email đã xác minh, miền trường và danh sách lớp. Tên/MSSV lấy từ roster, không nhận từ biểu mẫu sinh viên. Checkbox “Bạn đang có mặt trong lớp này để điểm danh” bắt buộc cả ở giao diện và backend.
@@ -28,7 +29,8 @@ Các thay đổi local phải được cập nhật đồng bộ; không chỉ t
 
 - Roster cần email Google trường đúng cho từng MSSV, không để trống. Tài khoản không thuộc lớp phải bị từ chối.
 - Vào slot hiện tại, quét QR bằng điện thoại, đăng nhập: đúng tên, lớp, ngày, giờ; chưa tích checkbox không được gửi. Có thể điểm danh không nhập Secret Code.
-- Bật Secret Code trên desktop, chọn nhập mã ở điện thoại để kiểm tra phương án thay thế. Sau khi đăng nhập quá lâu/mã đổi, quét mã mới hoặc nhập Secret Code hiện tại.
+- Bật Secret Code trên desktop, quét QR mới và đăng nhập Google: phải nhập thêm mã Secret. Gửi QR mà thiếu/sai mã phải bị từ chối. Tắt Secret Code và quét QR mới: không hiện ô mã. Khi giảng viên đổi chế độ trong lúc trang đang mở, quét lại QR để tải trạng thái mới.
+- Kết thúc phiên, chuyển Lịch dạy/Lớp học/Báo cáo rồi quay lại Điểm danh: vẫn CLOSED, không xuất hiện QR hay phiên mới. Thử lại sau khi khởi động app và import lại cùng buổi học.
 - Reset: số điểm danh về 0 ở phiên mới, mã cũ từ chối, bản ghi lượt trước vẫn ở Sheets.
 - Kết thúc phiên và chốt danh sách vắng. Trên FAP thấy số có mặt/vắng khớp app; bấm Đồng bộ, kiểm tra rồi Save. Đổi ngày/slot/giờ sai phải bị chặn trước khi tick.
 

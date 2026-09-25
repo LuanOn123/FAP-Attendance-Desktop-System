@@ -17,7 +17,7 @@
 <div id="identity" hidden><h2 id="welcome"></h2><p id="email"></p><button id="switch-account" type="button" class="text-button">Đổi tài khoản</button></div>
 <div id="lesson" hidden><div class="divider"></div><div class="step">02 / BUỔI HỌC CỦA BẠN</div><h2 id="course"></h2><dl><div><dt>Ngày</dt><dd id="date"></dd></div><div><dt>Slot</dt><dd id="slot"></dd></div><div><dt>Thời gian</dt><dd id="time"></dd></div></dl>
 <form id="checkin-form">
-<label class="choice"><input type="checkbox" id="use-secret"> Nhập Secret Code thay cho mã QR</label>
+<label class="choice" hidden><input type="checkbox" id="use-secret" disabled> Google + Secret Code</label>
 <div id="secret-field" hidden><label for="secret">Secret Code do giảng viên cung cấp</label><input id="secret" type="text" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="6 chữ số"><small>Giảng viên cần mở Secret Code trước khi sử dụng.</small></div>
 <label class="presence"><input type="checkbox" id="presence" required><span>Bạn đang có mặt trong lớp này để điểm danh</span></label>
 <button type="submit" id="submit" disabled>Xác nhận điểm danh <span aria-hidden="true">→</span></button>

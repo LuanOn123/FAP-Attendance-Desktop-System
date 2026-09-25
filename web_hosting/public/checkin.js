@@ -26,6 +26,11 @@
       const info = await request('studentSessionInfo', {});
       if (current !== generation) return;
       identity = info.student; lesson = info.session;
+      $('use-secret').checked = lesson.secretEnabled === true;
+      $('secret-field').hidden = !lesson.secretEnabled;
+      $('secret').required = lesson.secretEnabled === true;
+      $('secret').value = '';
+      $('switch-account').hidden = false;
       $('welcome').textContent = 'Xin chào, ' + identity.fullName;
       $('email').textContent = identity.studentCode + ' · ' + identity.email;
       $('course').textContent = lesson.subjectCode + ' · ' + lesson.classCode;
@@ -43,20 +48,23 @@
   $('switch-account').addEventListener('click', () => {
     generation++; credential = ''; identity = null; lesson = null; busy = false;
     $('identity').hidden = true; $('lesson').hidden = true; $('google-button').hidden = false;
+    $('login-hint').hidden = false; $('success').hidden = true;
     $('presence').checked = false; $('secret').value = ''; $('use-secret').checked = false; $('secret-field').hidden = true;
     google.accounts.id.disableAutoSelect(); message(''); update();
   });
   $('checkin-form').addEventListener('submit', async event => {
     event.preventDefault();
     if (busy || !identity || !$('presence').checked) return;
+    const current = generation;
     busy = true; update(); message('Đang ghi nhận điểm danh…');
     try {
       const receipt = await request('studentCheckIn', {token: qrToken, useSecret: $('use-secret').checked, secretCode: $('secret').value.trim(), confirmPresent: $('presence').checked});
+      if (current !== generation) return;
       $('lesson').hidden = true; $('success').hidden = false;
       $('receipt').textContent = receipt.fullName + ' · ' + lesson.classCode + ' · Slot ' + lesson.slot + ' · ' + lesson.date + ' · ' + new Date(receipt.checkInTime).toLocaleTimeString('vi-VN', {timeZone: 'Asia/Ho_Chi_Minh'});
       credential = ''; identity = null; $('switch-account').hidden = true; message('');
-    } catch (error) { message(error.message); }
-    finally { busy = false; update(); }
+    } catch (error) { if (current === generation) message(error.message); }
+    finally { if (current === generation) { busy = false; update(); } }
   });
   if (!sessionId) { $('login-hint').textContent = 'Hãy quét mã QR do giảng viên đang hiển thị để mở đúng buổi học.'; return; }
   const started = Date.now();

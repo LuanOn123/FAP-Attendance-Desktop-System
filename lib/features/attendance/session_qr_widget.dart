@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import '../../services/student_checkin_url.dart';
 
 class SessionQrDisplayWidget extends StatefulWidget {
   final String sessionId, initialToken, initialSecretCode;
@@ -81,10 +82,11 @@ class _SessionQrDisplayWidgetState extends State<SessionQrDisplayWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final url = Uri.https('fap-attendance-cba45.web.app', '/checkin', {
-      'sessionId': widget.sessionId,
-      'token': token,
-    });
+    final url = studentCheckinUrl(
+      sessionId: widget.sessionId,
+      token: token,
+      secretEnabled: secret.isNotEmpty,
+    );
     return SizedBox(
       width: 370,
       child: Card(
@@ -103,11 +105,16 @@ class _SessionQrDisplayWidgetState extends State<SessionQrDisplayWidget> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 20),
-              if (error == null)
+              if (error == null && !busy)
                 QrImageView(
                   data: url.toString(),
                   size: 260,
                   backgroundColor: Colors.white,
+                )
+              else if (busy)
+                const SizedBox(
+                  height: 260,
+                  child: Center(child: CircularProgressIndicator()),
                 )
               else
                 Padding(
@@ -126,9 +133,7 @@ class _SessionQrDisplayWidgetState extends State<SessionQrDisplayWidget> {
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Mở Secret Code'),
-                subtitle: const Text(
-                  'Sinh viên có thể chọn nhập mã thay cho QR',
-                ),
+                subtitle: const Text('Yêu cầu Google và mã Secret khi bật'),
                 value: secret.isNotEmpty,
                 onChanged: busy ? null : (value) => rotate(enableSecret: value),
               ),

@@ -35,7 +35,20 @@ function read_(book, name) {
   if (!Object.prototype.hasOwnProperty.call(SCHEMA, name)) throw new Error('Sheet không được hỗ trợ.');
   const sheet = book.getSheetByName(name);
   if (!sheet) throw new Error('Thiếu sheet ' + name + '. Chạy setupSheets.');
-  const values = sheet.getDataRange().getDisplayValues();
+  const range = sheet.getDataRange();
+  const values = range.getDisplayValues();
+  const raw = typeof range.getValues === 'function' ? range.getValues() : values;
+  if (name === 'Sessions') values.slice(1).forEach((row, index) => {
+    const date = raw[index + 1][2];
+    if (Object.prototype.toString.call(date) === '[object Date]') {
+      row[2] = Utilities.formatDate(date, 'Asia/Ho_Chi_Minh', 'yyyy-MM-dd');
+    } else {
+      const match = String(row[2]).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (match) row[2] = match[3] + '-' + match[2].padStart(2, '0') + '-' + match[1].padStart(2, '0');
+    }
+    if (Object.prototype.toString.call(raw[index + 1][8]) === '[object Date]') row[8] = raw[index + 1][8].toISOString();
+    row[6] = String(row[6]).trim().toUpperCase();
+  });
   const headers = SCHEMA[name];
   if (JSON.stringify(values[0]) !== JSON.stringify(headers)) throw new Error('Sai cấu trúc cột: ' + name);
   const rows = values.slice(1).filter(row => row.some(v => v !== '')).map(row =>
@@ -218,6 +231,7 @@ function handleSession_(book, cfg, lecturer, request) {
       const index = sessions.rows.findIndex(r => r.sessionId === sessionId);
       if (index === -1) throw new Error('Không tìm thấy phiên điểm danh.');
       if (sessions.rows[index].createdBy !== lecturer.lecturerId) throw new Error('Không có quyền kết thúc phiên điểm danh này.');
+      if (sessions.rows[index].status === 'RESET') throw new Error('Phiên này đã được thay thế. Tải lại phiên hiện tại.');
 
       const rowIndex = index + 2;
       const statusCol = SCHEMA.Sessions.indexOf('status') + 1;
@@ -393,9 +407,12 @@ function handleStudentCheckIn_(request) {
     const view = sessionView_(session);
     const expires = new Date(session.tokenExpiredAt).getTime();
     if (!Number.isFinite(expires) || Date.now() >= expires) throw new Error('Mã điểm danh đã hết hạn. Quét mã mới hoặc nhập Secret Code hiện tại.');
-    if (request.useSecret === true) {
-      if (!view.currentSecretCode || String(request.secretCode || '') !== view.currentSecretCode) throw new Error('Secret Code chưa được bật hoặc không chính xác.');
-    } else if (!view.currentToken || String(request.token || '') !== view.currentToken) throw new Error('Mã QR không hợp lệ hoặc đã thay đổi. Quét mã mới.');
+    if (view.currentSecretCode) {
+      if (String(request.secretCode || '') !== view.currentSecretCode) throw new Error('Giảng viên đang bật Secret Code. Nhập mã hiện tại hoặc quét lại QR.');
+    } else {
+      if (request.useSecret === true) throw new Error('Secret Code chưa được bật. Quét lại mã QR.');
+      if (!view.currentToken || String(request.token || '') !== view.currentToken) throw new Error('Mã QR không hợp lệ hoặc đã thay đổi. Quét mã mới.');
+    }
     const attendance = read_(book, 'Attendance');
     if (attendance.rows.some(a => a.sessionId === session.sessionId && a.studentId === student.studentId)) throw new Error('Bạn đã điểm danh trong phiên này.');
     const nowIso = new Date().toISOString();

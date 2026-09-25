@@ -7,8 +7,9 @@ const root=path.join(__dirname,'../..');
 const read=name=>fs.readFileSync(path.join(root,name),'utf8');
 const flush=()=>new Promise(resolve=>setTimeout(resolve,10));
 
-test('desktop preview reads automatically but writes only after teacher click; changed snapshot requires review', async()=>{
+test('desktop preview reads automatically but writes only after teacher click; changed snapshot requires review', async t=>{
   const dom=new JSDOM(read('attendance.html'),{runScripts:'outside-only',url:'https://fap.fpt.edu.vn/Attendance.aspx'});
+  t.after(() => dom.window.close());
   const w=dom.window; let shadow;
   const attach=w.Element.prototype.attachShadow;
   w.Element.prototype.attachShadow=function(options){shadow=attach.call(this,options);return shadow;};
@@ -27,7 +28,7 @@ test('desktop preview reads automatically but writes only after teacher click; c
   assert.match(shadow.textContent,/vừa thay đổi/);
   assert.deepEqual([...w.document.querySelectorAll('input[type=radio]')].map(i=>i.checked),before);
   button.click();await flush();
-  assert.match(shadow.textContent,/Đã điền 35/);assert.equal(submitted,0);
+  assert.ok(shadow.textContent.includes('Đã điền ' + data.students.length + ' sinh viên'));assert.equal(submitted,0);
   payload={...payload,metadata:{...payload.metadata,startTime:'10:00'}};
   button.click();await flush();assert.equal(button.disabled,true);assert.match(shadow.textContent,/Giờ học/);
   dom.window.close();

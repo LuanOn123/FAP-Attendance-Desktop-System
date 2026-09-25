@@ -60,6 +60,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   StreamSubscription? _importSub;
   late final _integration = widget.integrationServer ?? IntegrationServer();
   String? _attendanceScheduleId;
+  String? _attendanceDate;
   Timer? _clockTimer;
   List<Schedule> get _currentSlots => schedules
       .where(
@@ -77,8 +78,17 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       final target =
           schedule?.scheduleId ??
           (_currentSlots.length == 1 ? _currentSlots.single.scheduleId : null);
-      if (target != null || !_attendanceVisited || _currentSlots.length > 1) {
+      final date =
+          _importDates[target] ??
+          ScheduleClock.date(ScheduleClock.now(widget.clock?.call()));
+      if (!_attendanceVisited ||
+          (target != null &&
+              (target != _attendanceScheduleId || date != _attendanceDate)) ||
+          (_currentSlots.length > 1 &&
+              _attendanceScheduleId != null &&
+              schedule == null)) {
         _attendanceScheduleId = target;
+        _attendanceDate = date;
         _importRevision++;
       }
       _attendanceVisited = true;
@@ -382,6 +392,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                   ? AttendanceScreen(
                       lecturer: widget.lecturer,
                       schedules: schedules,
+                      clock: widget.clock,
                       classes: classes,
                       repository: _attendanceRepo,
                       scheduleRepository: widget.repository,

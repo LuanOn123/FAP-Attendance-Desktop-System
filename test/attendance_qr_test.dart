@@ -5,6 +5,7 @@ import 'package:fap_attendance/features/attendance/session_qr_widget.dart';
 import 'package:fap_attendance/models/class_model.dart';
 import 'package:fap_attendance/models/lecturer.dart';
 import 'package:fap_attendance/models/schedule.dart';
+import 'package:fap_attendance/models/session_model.dart';
 import 'package:fap_attendance/repositories/attendance_repository.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:fap_attendance/features/schedule/schedule_screen.dart';
@@ -47,8 +48,17 @@ class CurrentScheduleRepository extends DemoScheduleRepository {
 }
 
 void main() {
+  test('Sheets localized dates and statuses identify the same closed slot', () {
+    final session = SessionModel.fromJson({
+      'date': '22/9/2026',
+      'status': ' closed ',
+    });
+    expect(session.date, '2026-09-22');
+    expect(session.status, 'CLOSED');
+    expect(session.isOpen, false);
+  });
   for (final entry in ['slot', 'tab']) {
-    testWidgets('current timetable opens QR by ' + entry, (tester) async {
+    testWidgets('current timetable opens QR by $entry', (tester) async {
       await tester.binding.setSurfaceSize(const Size(1600, 1100));
       addTearDown(() => tester.binding.setSurfaceSize(null));
       final repo = DemoAttendanceRepository();
@@ -71,6 +81,20 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(QrImageView), findsOneWidget);
       expect(await repo.getSessionsByClass('c1'), hasLength(1));
+      final original = (await repo.getSessionsByClass('c1')).single;
+      expect(original.date, '2026-09-22');
+      await tester.tap(find.text('Kết thúc phiên'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Kết thúc ngay'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Lịch dạy'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Điểm danh'));
+      await tester.pumpAndSettle();
+      final closed = (await repo.getSessionsByClass('c1')).single;
+      expect(closed.sessionId, original.sessionId);
+      expect(closed.status, 'CLOSED');
+      expect(find.byType(QrImageView), findsNothing);
       await tester.pumpWidget(const SizedBox());
     });
   }

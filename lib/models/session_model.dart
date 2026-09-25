@@ -31,11 +31,11 @@ class SessionModel {
     return SessionModel(
       sessionId: json['sessionId']?.toString() ?? '',
       classId: json['classId']?.toString() ?? '',
-      date: json['date']?.toString() ?? '',
+      date: normalizeDate(json['date']?.toString() ?? ''),
       slot: int.tryParse(json['slot']?.toString() ?? '') ?? 1,
       startTime: json['startTime']?.toString() ?? '',
       endTime: json['endTime']?.toString() ?? '',
-      status: json['status']?.toString() ?? 'OPEN',
+      status: (json['status']?.toString() ?? 'OPEN').trim().toUpperCase(),
       currentToken: (json['currentToken']?.toString() ?? '').split('#').first,
       currentSecretCode:
           json['currentSecretCode']?.toString() ??
@@ -45,6 +45,15 @@ class SessionModel {
       tokenExpiredAt: json['tokenExpiredAt']?.toString() ?? '',
       createdBy: json['createdBy']?.toString() ?? '',
     );
+  }
+
+  static String normalizeDate(String value) {
+    final text = value.trim();
+    final match = RegExp(r'^(\d{1,2})/(\d{1,2})/(\d{4})$').firstMatch(text);
+    if (match != null) {
+      return '${match[3]}-${match[2]!.padLeft(2, '0')}-${match[1]!.padLeft(2, '0')}';
+    }
+    return text;
   }
 
   Map<String, dynamic> toJson() => {
