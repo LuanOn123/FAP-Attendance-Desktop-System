@@ -14,26 +14,28 @@
   const copy = document.createElement('div'); copy.className = 'copy';
   const title = document.createElement('strong'); title.textContent = 'FAP Attendance · Đồng bộ từ desktop';
   const status = document.createElement('p'); status.setAttribute('role', 'status');
-  const note = document.createElement('small'); note.textContent = 'Đối chiếu đúng buổi học. Sau khi điền, kiểm tra danh sách rồi bấm Save trên FAP.';
+  const note = document.createElement('small'); note.textContent = 'Lấy báo cáo đang chọn trong tab Report của Desktop, đối chiếu mã lớp, MSSV và họ tên. Xem ngày/slot báo cáo trước khi đồng bộ; sau khi điền, tự bấm Save trên FAP.';
   const button = document.createElement('button'); button.type = 'button'; button.textContent = 'Đồng bộ điểm danh'; button.disabled = true;
-  copy.append(title, status, note); panel.append(copy, button); shadow.append(style, panel);
+  const reload = document.createElement('button'); reload.type = 'button'; reload.textContent = 'Tải lại báo cáo';
+  copy.append(title, status, note); panel.append(copy, button, reload); shadow.append(style, panel);
   const first = globalThis.FapAttendanceWriter.rowsByCode(document).values().next().value;
   (first?.closest('table') || first?.parentElement || document.body).before(host);
   let snapshot = '', busy = false;
   function metadata() {
     const data = scan();
-    return {courseCode: data.course.courseCode, classCode: data.class.classCode, date: data.session.date, slot: data.session.slot, startTime: data.session.startTime, endTime: data.session.endTime, ...(data.semester ? {semester: data.semester} : {})};
+    return {classCode: data.class.classCode, date: data.session.date, slot: data.session.slot, startTime: data.session.startTime, endTime: data.session.endTime};
   }
   async function fetchReport() {
-    const response = await chrome.runtime.sendMessage({type: 'GET_REPORT', data: metadata()});
+    const response = await chrome.runtime.sendMessage({type: 'GET_REPORT', data: {...metadata(), selectedReport: true}});
     if (!response?.success || !response.data) throw new Error(response?.message || 'Mở desktop và đăng nhập giảng viên để nhận báo cáo.');
     const payload = response.data;
+    if (payload.matchMode !== 'selectedReport') throw new Error('Desktop chưa hỗ trợ báo cáo đang chọn. Hãy mở bản app mới và chọn báo cáo trong tab Report.');
     const preview = globalThis.FapAttendanceWriter.plan(document, payload, globalThis.FapAttendanceScanner.scan);
     return {payload, preview, signature: JSON.stringify(payload)};
   }
   async function refresh(apply = false) {
     if (busy) return;
-    busy = true; button.disabled = true;
+    busy = true; button.disabled = true; reload.disabled = true;
     status.textContent = 'Đang đối chiếu báo cáo với buổi học trên trang…';
     try {
       const result = await fetchReport();
@@ -49,9 +51,10 @@
       }
       button.disabled = false;
     } catch (error) { snapshot = ''; status.textContent = error.message; }
-    finally { busy = false; }
+    finally { busy = false; reload.disabled = false; }
   }
   button.addEventListener('click', () => refresh(true));
+  reload.addEventListener('click', () => refresh());
   refresh();
   const timer = setInterval(() => { if (!host.isConnected) clearInterval(timer); else if (!document.hidden) refresh(); }, 30000);
 })();

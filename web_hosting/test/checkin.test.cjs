@@ -22,7 +22,7 @@ async function fixture(t, secretEnabled) {
       session:{subjectCode:'PRN232',classCode:'SE1917',date:'2026-09-25',slot:1,startTime:'07:00',endTime:'09:15',secretEnabled}}})};
   };
   w.eval(script); ready(); await login({credential:'google-id-token'});
-  return {w,$,calls};
+  return {w,$,calls,login};
 }
 
 for (const enabled of [false,true]) test(`Google login follows server secret mode ${enabled}`, async t => {
@@ -60,4 +60,20 @@ test('switching account ignores a previous pending check-in result', async t => 
   assert.equal($('google-button').hidden,false);
   assert.equal($('login-hint').hidden,false);
   assert.equal($('message').textContent,'');
+});
+
+test('legacy lecturer API rejection identifies deployment problem', async t => {
+  const {w,$,login} = await fixture(t,false);
+  w.fetch = async()=>({ok:true,json:async()=>({ok:false,error:'Tài khoản Google không được phép truy cập.'})});
+  await login({credential:'student-google-token'});
+  assert.match($('message').textContent,/deployment Apps Script/);
+  assert.equal($('submit').disabled,true);
+});
+
+test('network failure explains API loading failure', async t => {
+  const {w,$,login} = await fixture(t,false);
+  w.fetch = async()=>{throw new w.TypeError('Load failed');};
+  await login({credential:'student-google-token'});
+  assert.match($('message').textContent,/Không tải được API điểm danh/);
+  assert.equal($('submit').disabled,true);
 });

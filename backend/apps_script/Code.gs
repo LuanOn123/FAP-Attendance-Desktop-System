@@ -298,27 +298,44 @@ function handleSession_(book, cfg, lecturer, request) {
       const nowIso = new Date().toISOString();
 
       const attendance = read_(book, 'Attendance');
-      const index = attendance.rows.findIndex(r => r.attendanceId === attendanceId);
-      if (index === -1) throw new Error('Không tìm thấy bản ghi điểm danh.');
+      let index = attendance.rows.findIndex(r => r.attendanceId === attendanceId);
+      if (index === -1) {
+        const session = sessions.rows.find(s => s.sessionId === request.sessionId && s.createdBy === lecturer.lecturerId && ['OPEN', 'CLOSED'].includes(s.status));
+        if (!session || !['PRESENT', 'LATE', 'ABSENT'].includes(status)) throw new Error('Không có quyền sửa phiên hoặc trạng thái không hợp lệ.');
+        const code = String(request.studentCode || '').trim().toUpperCase();
+        const matches = read_(book, 'Students').rows.filter(s => String(s.studentCode).trim().toUpperCase() === code);
+        if (matches.length !== 1 || !read_(book, 'Enrollments').rows.some(e => e.classId === session.classId && e.studentId === matches[0].studentId)) throw new Error('Sinh viên không thuộc danh sách lớp.');
+        const student = matches[0];
+        index = attendance.rows.findIndex(r => r.sessionId === session.sessionId && r.studentId === student.studentId);
+        if (index === -1) {
+          const record = {attendanceId: Utilities.getUuid(), sessionId: session.sessionId, studentId: student.studentId,
+            status, checkInTime: '', updatedAt: nowIso, note, updatedBy};
+          attendance.sheet.appendRow(SCHEMA.Attendance.map(key => String(record[key] || '')));
+          return {saved: true, attendanceId: record.attendanceId};
+        }
+      }
 
       const owned = sessions.rows.find(s => s.sessionId === attendance.rows[index].sessionId && s.createdBy === lecturer.lecturerId && s.status !== 'RESET');
       if (!owned || !['PRESENT', 'LATE', 'ABSENT'].includes(status)) throw new Error('Không có quyền sửa bản ghi hoặc trạng thái không hợp lệ.');
-      const rowIndex = index + 2;
+      const record = attendance.rows[index];
+      if (request.sessionId && request.sessionId !== record.sessionId) throw new Error('Bản ghi không thuộc phiên đã chọn.');
+      if (attendance.rows.filter(r => r.sessionId === record.sessionId && r.studentId === record.studentId).length !== 1) throw new Error('Trùng bản ghi điểm danh trong phiên.');
+      if (request.studentCode && !read_(book, 'Students').rows.some(s => s.studentId === record.studentId && String(s.studentCode).trim().toUpperCase() === String(request.studentCode).trim().toUpperCase())) throw new Error('MSSV không khớp bản ghi điểm danh.');
+      // Resolve the physical row: read_ excludes empty rows.
+      const rowIndex = attendance.sheet.getDataRange().getDisplayValues().findIndex((row, i) => i > 0 && row[0] === record.attendanceId) + 1;
+      if (rowIndex < 2) throw new Error('Không tìm thấy dòng điểm danh cần cập nhật.');
       const statusCol = SCHEMA.Attendance.indexOf('status') + 1;
-      const noteCol = SCHEMA.Attendance.indexOf('note') + 1;
-      const timeCol = SCHEMA.Attendance.indexOf('updatedAt') + 1;
-      const byCol = SCHEMA.Attendance.indexOf('updatedBy') + 1;
-
-      attendance.sheet.getRange(rowIndex, statusCol).setValue(status);
-      attendance.sheet.getRange(rowIndex, noteCol).setValue(note);
-      attendance.sheet.getRange(rowIndex, timeCol).setValue(nowIso);
-      attendance.sheet.getRange(rowIndex, byCol).setValue(updatedBy);
+      const range = attendance.sheet.getDataRange();
+      const rawRows = typeof range.getValues === 'function' ? range.getValues() : range.getDisplayValues();
+      attendance.sheet.getRange(rowIndex, statusCol, 1, 5).setValues([
+        [status, rawRows[rowIndex - 1][4], nowIso, note.startsWith('=') ? "'" + note : note, updatedBy]
+      ]);
       return {saved: true};
     }
 
     if (request.action === 'markAbsent') {
       const sessionId = String(request.sessionId || '').trim();
-      const studentCodes = Array.isArray(request.studentCodes) ? request.studentCodes : [];
+      const studentCodes = Array.isArray(request.studentCodes) ? [...new Set(request.studentCodes)] : [];
       const markedBy = lecturer.email;
       const owned = sessions.rows.find(s => s.sessionId === sessionId && s.createdBy === lecturer.lecturerId && s.status === 'CLOSED');
       if (!owned) throw new Error('Chỉ chốt vắng cho phiên đã đóng của bạn.');
@@ -372,7 +389,8 @@ function authenticateStudent_(idToken, cfg, book) {
   if (response.getResponseCode() !== 200) throw new Error('Phiên Google không hợp lệ. Đăng nhập lại.');
   const claims = JSON.parse(response.getContentText());
   const email = String(claims.email || '').trim().toLowerCase();
-  if (claims.aud !== cfg.webAudience || !['accounts.google.com', 'https://accounts.google.com'].includes(claims.iss) ||
+  if (claims.aud !== cfg.webAudience) throw new Error('Cấu hình đăng nhập sinh viên không khớp. Giảng viên cần kiểm tra GOOGLE_WEB_CLIENT_ID của trang web và Apps Script.');
+  if (!['accounts.google.com', 'https://accounts.google.com'].includes(claims.iss) ||
       !Number.isFinite(Number(claims.exp)) || Number(claims.exp) <= Date.now()/1000 ||
       ![true, 'true'].includes(claims.email_verified) || !cfg.domains.includes(email.split('@')[1]) || !cfg.domains.includes(claims.hd)) throw new Error('Chỉ tài khoản Google email trường đã xác minh được phép điểm danh.');
   const matches = read_(book, 'Students').rows.filter(s => String(s.schoolEmail).trim().toLowerCase() === email);

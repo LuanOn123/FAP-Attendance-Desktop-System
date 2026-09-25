@@ -8,14 +8,29 @@
   const message = text => { $('message').textContent = text; };
   const update = () => { $('submit').disabled = busy || !identity || !$('presence').checked || ($('use-secret').checked && !/^\d{6}$/.test($('secret').value.trim())); };
   async function request(action, data) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+    try {
     const response = await fetch(window.FAP_CONFIG.appsScriptUrl, {
       method: 'POST', headers: {'Content-Type': 'text/plain;charset=UTF-8'},
-      body: JSON.stringify({action, sessionId, idToken: credential, ...data}), signal: AbortSignal.timeout(30000)
+      body: JSON.stringify({action, sessionId, idToken: credential, ...data}), signal: controller.signal
     });
     if (!response.ok) throw new Error('Không kết nối được máy chủ. Vui lòng thử lại.');
-    const result = await response.json();
-    if (!result.ok) throw new Error(result.error || 'Không thực hiện được yêu cầu.');
+    let result;
+    try { result = await response.json(); }
+    catch { throw new Error('API chưa trả dữ liệu điểm danh. Giảng viên cần kiểm tra URL và quyền truy cập deployment Apps Script.'); }
+    if (!result.ok) {
+      if (['Cần đăng nhập Google.', 'Tài khoản Google không được phép truy cập.'].includes(result.error)) {
+        throw new Error('API đang dùng luồng đăng nhập giảng viên. Giảng viên cần cập nhật deployment Apps Script cho trang sinh viên.');
+      }
+      throw new Error(result.error || 'Không thực hiện được yêu cầu.');
+    }
     return result.data;
+    } catch (error) {
+      if (error.name === 'AbortError') throw new Error('Máy chủ phản hồi quá lâu. Kiểm tra mạng và thử đăng nhập lại.');
+      if (error instanceof TypeError) throw new Error('Không tải được API điểm danh. Kiểm tra mạng; nếu vẫn lỗi, giảng viên cần kiểm tra URL và quyền truy cập Apps Script.');
+      throw error;
+    } finally { clearTimeout(timeout); }
   }
   async function login(response) {
     const current = ++generation;

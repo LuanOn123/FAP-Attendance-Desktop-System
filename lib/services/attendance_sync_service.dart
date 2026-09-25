@@ -13,32 +13,41 @@ class AttendanceSyncService {
   final String lecturerId;
   AttendanceSyncService(this.schedules, this.attendance, this.lecturerId);
 
-  Future<Map<String, dynamic>> report(Map<String, dynamic> query) async {
+  Future<Map<String, dynamic>> report(
+    Map<String, dynamic> query, {
+    String? selectedClassId,
+    String? selectedSessionId,
+  }) async {
+    final selected = query['selectedReport'] == true;
+    if (selected && (selectedClassId == null || selectedSessionId == null)) {
+      throw const AppException(
+        'Mở tab Report trên Desktop và chọn báo cáo cần đồng bộ.',
+      );
+    }
     String value(String key) => '${query[key] ?? ''}'.trim();
     final date = value('date');
     final slot = int.tryParse(value('slot'));
     final start = ScheduleClock.minutes(value('startTime'));
     final end = ScheduleClock.minutes(value('endTime'));
-    if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(date) ||
-        slot == null ||
-        start == null ||
-        end == null ||
-        start >= end ||
-        value('classCode').isEmpty ||
-        value('courseCode').isEmpty) {
+    if (!selected &&
+        (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(date) ||
+            slot == null ||
+            start == null ||
+            end == null ||
+            start >= end ||
+            value('classCode').isEmpty)) {
       throw const AppException(
-        'Trang thiếu môn, lớp, ngày, slot hoặc giờ học. Chưa thể đồng bộ.',
+        'Trang thiếu mã lớp, ngày, slot hoặc giờ bắt đầu–kết thúc. Chưa thể đồng bộ.',
       );
     }
     final classes = (await schedules.getClasses())
         .where(
           (c) =>
               c.lecturerId == lecturerId &&
-              c.classCode.toUpperCase() == value('classCode').toUpperCase() &&
-              c.subjectCode.toUpperCase() ==
-                  value('courseCode').toUpperCase() &&
-              (value('semester').isEmpty ||
-                  c.semester.toUpperCase() == value('semester').toUpperCase()),
+              (selected
+                  ? c.classId == selectedClassId
+                  : c.classCode.trim().toUpperCase() ==
+                        value('classCode').toUpperCase()),
         )
         .toList();
     final matches = <({ClassModel cls, SessionModel session})>[];
@@ -48,10 +57,12 @@ class AttendanceSyncService {
             (s) =>
                 s.createdBy == lecturerId &&
                 s.status != 'RESET' &&
-                s.date == date &&
-                s.slot == slot &&
-                ScheduleClock.minutes(s.startTime) == start &&
-                ScheduleClock.minutes(s.endTime) == end,
+                (selected
+                    ? s.sessionId == selectedSessionId
+                    : s.date == date &&
+                          s.slot == slot &&
+                          ScheduleClock.minutes(s.startTime) == start &&
+                          ScheduleClock.minutes(s.endTime) == end),
           )
           .toList();
       for (final session in sessions) {
@@ -61,13 +72,18 @@ class AttendanceSyncService {
     if (matches.length != 1) {
       throw AppException(
         matches.isEmpty
-            ? 'Không có báo cáo khớp chính xác buổi học trên trang.'
-            : 'Có nhiều báo cáo trùng buổi học. Kiểm tra học kỳ và dữ liệu phiên.',
+            ? 'Không có báo cáo khớp lớp ${value('classCode')}, ngày $date, slot $slot, giờ ${value('startTime')}–${value('endTime')}. Kiểm tra buổi điểm danh trên app.'
+            : 'Có nhiều báo cáo cùng mã lớp, ngày, slot và giờ học. Cần kiểm tra các phiên trùng trước khi đồng bộ.',
       );
     }
     final cls = matches.single.cls;
     final session = matches.single.session;
-    if (session.status != 'CLOSED') {
+    if (selected && !['OPEN', 'CLOSED'].contains(session.status)) {
+      throw const AppException(
+        'Báo cáo đã được thay thế hoặc phiên không hợp lệ.',
+      );
+    }
+    if (!selected && session.status != 'CLOSED') {
       throw const AppException(
         'Phiên đang mở. Kết thúc phiên trên app để chốt danh sách trước khi đồng bộ.',
       );
@@ -80,7 +96,7 @@ class AttendanceSyncService {
         classId: cls.classId,
       ),
     );
-    if (roster.isEmpty) {
+    if (roster.isEmpty && !selected) {
       throw const AppException('Lớp chưa có danh sách sinh viên.');
     }
     final records = await attendance.getSessionAttendance(session.sessionId);
@@ -94,26 +110,58 @@ class AttendanceSyncService {
       final found = records
           .where((r) => r.studentCode.trim().toUpperCase() == code)
           .toList();
-      if (found.length != 1) {
+      if (found.length > 1 || (!selected && found.isEmpty)) {
         throw const AppException(
           'Danh sách chưa chốt đầy đủ hoặc bị trùng. Mở Điểm danh và chốt danh sách vắng trước khi đồng bộ.',
         );
       }
-      final status = found.single.status.toUpperCase();
+      final status = found.isEmpty
+          ? 'ABSENT'
+          : found.single.status.toUpperCase();
       if (!['PRESENT', 'LATE', 'ABSENT'].contains(status)) {
         throw const AppException('Có trạng thái chưa hỗ trợ đồng bộ.');
       }
       entries.add({
         'studentCode': code,
+        'fullName': student.fullName,
         'status': status == 'ABSENT' ? 'absent' : 'present',
         'originalStatus': status,
       });
+    }
+    if (selected) {
+      for (final record in records.where(
+        (r) => !roster.any(
+          (s) =>
+              s.studentCode.trim().toUpperCase() ==
+              r.studentCode.trim().toUpperCase(),
+        ),
+      )) {
+        final code = record.studentCode.trim().toUpperCase();
+        final status = record.status.toUpperCase();
+        if (code.isEmpty ||
+            !seen.add(code) ||
+            !['PRESENT', 'LATE', 'ABSENT'].contains(status)) {
+          throw const AppException(
+            'Báo cáo có MSSV hoặc trạng thái không hợp lệ/trùng.',
+          );
+        }
+        entries.add({
+          'studentCode': code,
+          'fullName': record.fullName,
+          'status': status == 'ABSENT' ? 'absent' : 'present',
+          'originalStatus': status,
+        });
+      }
     }
     entries.sort((a, b) => a['studentCode']!.compareTo(b['studentCode']!));
     // Recheck reset/close while loading the roster and attendance snapshot.
     final stillCurrent = await attendance.getSessionsByClass(cls.classId);
     if (!stillCurrent.any(
-      (s) => s.sessionId == session.sessionId && s.status == 'CLOSED',
+      (s) =>
+          s.sessionId == session.sessionId &&
+          (selected
+              ? ['OPEN', 'CLOSED'].contains(s.status)
+              : s.status == 'CLOSED'),
     )) {
       throw const AppException('Phiên vừa thay đổi. Hãy tải lại báo cáo.');
     }
@@ -121,13 +169,14 @@ class AttendanceSyncService {
       'success': true,
       'data': {
         'source': 'desktop',
+        if (selected) 'matchMode': 'selectedReport',
         'sessionId': session.sessionId,
         'metadata': {
           'semester': cls.semester,
           'courseCode': cls.subjectCode,
           'classCode': cls.classCode,
-          'date': date,
-          'slot': slot,
+          'date': session.date,
+          'slot': session.slot,
           'startTime': session.startTime,
           'endTime': session.endTime,
         },

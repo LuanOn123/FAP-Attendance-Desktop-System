@@ -39,6 +39,8 @@ abstract class AttendanceRepository {
 
   /// Member 4: Cập nhật trạng thái điểm danh thủ công
   Future<void> updateAttendanceStatus({
+    String? sessionId,
+    String? studentCode,
     required String attendanceId,
     required String status,
     required String note,
@@ -176,18 +178,25 @@ class SheetAttendanceRepository implements AttendanceRepository {
 
   @override
   Future<void> updateAttendanceStatus({
+    String? sessionId,
+    String? studentCode,
     required String attendanceId,
     required String status,
     required String note,
     required String updatedBy,
   }) async {
-    await sheets.request('updateAttendance', {
+    final result = await sheets.request('updateAttendance', {
+      if (sessionId != null) 'sessionId': sessionId,
+      if (studentCode != null) 'studentCode': studentCode,
       'attendanceId': attendanceId,
       'status': status,
       'note': note,
       'updatedBy': updatedBy,
       'updatedAt': DateTime.now().toIso8601String(),
     });
+    if (result is! Map || result['saved'] != true) {
+      throw const AppException('Máy chủ chưa xác nhận lưu thay đổi điểm danh.');
+    }
   }
 
   @override
@@ -209,11 +218,7 @@ class SheetAttendanceRepository implements AttendanceRepository {
     try {
       final sessions = await getSessionsByClass(classId);
       final results = await Future.wait(
-        sessions.map(
-          (s) => getSessionAttendance(
-            s.sessionId,
-          ).catchError((_) => <AttendanceRecord>[]),
-        ),
+        sessions.map((s) => getSessionAttendance(s.sessionId)),
       );
       return results.expand((list) => list).toList();
     } catch (_) {
@@ -426,14 +431,30 @@ class DemoAttendanceRepository implements AttendanceRepository {
 
   @override
   Future<void> updateAttendanceStatus({
+    String? sessionId,
+    String? studentCode,
     required String attendanceId,
     required String status,
     required String note,
     required String updatedBy,
   }) async {
-    final idx = _attendanceRecords.indexWhere(
+    var idx = _attendanceRecords.indexWhere(
       (r) => r.attendanceId == attendanceId,
     );
+    if (idx == -1 && sessionId != null && studentCode != null) {
+      final session = _sessions[sessionId];
+      if (session == null || session.status == 'RESET') {
+        throw const AppException('Phiên điểm danh không hợp lệ.');
+      }
+      await markAbsent(
+        sessionId: sessionId,
+        studentCodes: [studentCode],
+        lecturerEmail: updatedBy,
+      );
+      idx = _attendanceRecords.indexWhere(
+        (r) => r.sessionId == sessionId && r.studentCode == studentCode,
+      );
+    }
     if (idx == -1) throw const AppException('Bản ghi điểm danh không tồn tại.');
     _attendanceRecords[idx] = _attendanceRecords[idx].copyWith(
       status: status,

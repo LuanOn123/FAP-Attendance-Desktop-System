@@ -78,17 +78,30 @@ if (process.env.FAP_EXCEL_FIXTURE) test('actual exported workbook fills the 35-s
   const dom = new JSDOM(fs.readFileSync(path.join(__dirname, '../../attendance.html'), 'utf8'), {runScripts: 'dangerously'});
   const doc = dom.window.document;
   doc.querySelector('#reverse').click();
+  // The user's HTML represents another date/slot. Prove rejection first,
+  // then change only this in-memory test page to the workbook's session.
+  const before = [...doc.querySelectorAll('input')].map(input => input.checked);
+  assert.throws(() => apply(doc, data, scan), /Sai hoặc thiếu/);
+  assert.deepEqual([...doc.querySelectorAll('input')].map(input => input.checked), before);
+  for (const span of doc.querySelectorAll('span')) {
+    if (/^Date:/.test(span.textContent.trim())) span.textContent = 'Date: ' + data.metadata.date;
+    if (/^Slot:/.test(span.textContent.trim())) span.textContent = 'Slot: ' + data.metadata.slot;
+  }
   const result = apply(doc, data, scan);
   assert.equal(result.applied, 35); assert.equal(result.present, 1); assert.equal(result.absent, 34);
-  assert.equal(doc.querySelector('[data-student-code="SE193416"] input:checked').value, '1');
+  for (const entry of data.entries) {
+    assert.equal(doc.querySelector(`[data-student-code="${entry.studentCode}"] input:checked`).value, entry.status === 'present' ? '1' : '0');
+  }
   assert.equal(doc.querySelector('#presentCount').textContent, '1');
   assert.equal(doc.querySelector('#absentCount').textContent, '34');
   assert.equal(doc.querySelector('#notice').textContent, '');
   dom.window.close();
 });
 
-test('popup imports XLSX and applies only after Start, even when desktop is offline', async () => {
-  const page = fixture();
+for (const actual of process.env.FAP_EXCEL_FIXTURE ? [false, true] : [false]) test(`popup imports ${actual ? 'actual 35-row' : 'generated'} XLSX and applies only after Start, even when desktop is offline`, async () => {
+  const page = actual ? new JSDOM(fs.readFileSync(path.join(__dirname, '../../attendance.html'), 'utf8'), {runScripts:'dangerously'}) : fixture();
+  const uploadName = actual ? path.basename(process.env.FAP_EXCEL_FIXTURE) : filename;
+  const count = actual ? 35 : 2;
   const popup = new JSDOM(fs.readFileSync(path.join(__dirname, '../popup/popup.html'), 'utf8'), {runScripts: 'outside-only'});
   const doc = popup.window.document;
   const wait = async predicate => {
@@ -96,7 +109,16 @@ test('popup imports XLSX and applies only after Start, even when desktop is offl
     assert.fail(doc.querySelector('#import-summary').textContent + ' / ' + doc.querySelector('#import-result').textContent);
   };
   const book = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet(input()), 'Results');
-  const bytes = XLSX.write(book, {type: 'array', bookType: 'xlsx'});
+  const bytes = actual ? fs.readFileSync(process.env.FAP_EXCEL_FIXTURE) : XLSX.write(book, {type: 'array', bookType: 'xlsx'});
+  if (actual) {
+    const data = read(bytes, uploadName, XLSX);
+    for (const span of page.window.document.querySelectorAll('span')) {
+      if (/^Date:/.test(span.textContent.trim())) span.textContent = 'Date: ' + data.metadata.date;
+      if (/^Slot:/.test(span.textContent.trim())) span.textContent = 'Slot: ' + data.metadata.slot;
+    }
+    page.window.document.querySelector('#reset').click();
+    page.window.document.querySelector('#reverse').click();
+  }
   let activeId = 7;
   popup.window.AttendanceWorkbook = {read}; popup.window.XLSX = XLSX;
   popup.window.chrome = {
@@ -112,18 +134,37 @@ test('popup imports XLSX and applies only after Start, even when desktop is offl
   popup.window.eval(fs.readFileSync(path.join(__dirname, '../popup/popup.js'), 'utf8') + '\n' + fs.readFileSync(path.join(__dirname, '../popup/excelImport.js'), 'utf8'));
   await wait(() => doc.querySelector('#status-text').textContent.includes('Đã quét'));
   const fileInput = doc.querySelector('#attendance-file');
-  Object.defineProperty(fileInput, 'files', {value: [{name: filename, size: bytes.byteLength, arrayBuffer: async () => bytes}], configurable: true});
+  Object.defineProperty(fileInput, 'files', {value: [{name: uploadName, size: bytes.byteLength, arrayBuffer: async () => bytes}], configurable: true});
   fileInput.dispatchEvent(new popup.window.Event('change'));
   await wait(() => !doc.querySelector('#btn-auto-attendance').disabled);
   assert.equal(doc.querySelector('#btn-send').disabled, true);
-  assert.equal(page.window.document.querySelectorAll(':checked').length, 0);
+  assert.equal(page.window.document.querySelectorAll('input:checked').length, 0);
+  doc.querySelector('#btn-rescan').click();
+  await wait(() => !doc.querySelector('#btn-auto-attendance').disabled);
+  assert.ok(doc.querySelector('#import-summary').textContent.includes(`Khớp ${count}/${count}`));
   doc.querySelector('#btn-auto-attendance').click();
-  await wait(() => doc.querySelector('#import-result').textContent.includes('Đã điền 2 dòng'));
-  assert.equal(page.window.document.querySelectorAll(':checked').length, 2);
+  await wait(() => doc.querySelector('#import-result').textContent.includes(`Đã điền ${count} dòng`));
+  assert.equal(page.window.document.querySelectorAll('input:checked').length, count);
   // Changed active tab must invalidate the next preview rather than write elsewhere.
   activeId = 9;
   fileInput.dispatchEvent(new popup.window.Event('change'));
   await wait(() => doc.querySelector('#import-summary').textContent.includes('Tab đã thay đổi'));
   assert.equal(doc.querySelector('#btn-auto-attendance').disabled, true);
   popup.window.close(); page.window.close();
+});
+
+test('symbol fallback, aliases and normalized status preserve strict validation', () => {
+  const result = parseRows([['Student Code', 'FAP', 'Class', 'Subject'],
+    ['se123456', 'p', 'SE1917', 'PRN232'], ['SE123457', 'a', 'SE1917', 'PRN232']], filename);
+  assert.deepEqual(result.entries.map(e => e.status), ['present', 'absent']);
+  assert.throws(() => parseRows([['MSSV','Trạng thái','Ký hiệu FAP','Lớp học','Mã môn'],
+    ['SE123456','unknown','P','SE1917','PRN232']], filename), /không hỗ trợ/);
+});
+
+test('Excel may omit unavailable page metadata but known mismatches remain blocked', () => {
+  const dom = fixture();
+  dom.window.document.querySelectorAll('p').forEach(p => p.remove());
+  assert.equal(plan(dom.window.document, payload(), scan).matched, 2);
+  assert.throws(() => plan(dom.window.document, {...payload(), source:'desktop'}, scan), /Sai hoặc thiếu/);
+  dom.window.close();
 });

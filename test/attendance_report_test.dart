@@ -9,6 +9,19 @@ import 'package:fap_attendance/models/lecturer.dart';
 import 'package:fap_attendance/models/schedule.dart';
 import 'package:fap_attendance/models/session_model.dart';
 import 'package:fap_attendance/repositories/attendance_repository.dart';
+import 'package:fap_attendance/repositories/schedule_repository.dart';
+import 'package:fap_attendance/models/roster.dart';
+
+class ReportRosterRepository extends DemoScheduleRepository {
+  @override
+  Future<List<RosterStudent>> getRoster(ClassTarget target) async => const [
+    RosterStudent(
+      classCode: 'SE1848',
+      studentCode: 'SE181850',
+      fullName: 'Le Van C',
+    ),
+  ];
+}
 
 class MockAttendanceRepository implements AttendanceRepository {
   @override
@@ -27,6 +40,8 @@ class MockAttendanceRepository implements AttendanceRepository {
 
   @override
   Future<void> updateAttendanceStatus({
+    String? sessionId,
+    String? studentCode,
     required String attendanceId,
     required String status,
     required String note,
@@ -215,14 +230,33 @@ void main() {
         ),
       );
 
-      expect(
-        find.text('Chưa có sinh viên nào điểm danh qua QR cho buổi này.'),
-        findsOneWidget,
-      );
+      expect(find.text('Chưa có dữ liệu báo cáo để hiển thị.'), findsOneWidget);
     });
   });
 
   group('ManualUpdateDialog Tests', () {
+    testWidgets('save failure stays visible and does not dismiss dialog', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ManualUpdateDialog(
+              record: sampleRecords[2],
+              onSave: (_, _) async => throw Exception('offline'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Lưu thay đổi'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ManualUpdateDialog), findsOneWidget);
+      expect(
+        find.text('Không lưu được thay đổi. Vui lòng thử lại.'),
+        findsOneWidget,
+      );
+      expect(sampleRecords[2].status, 'ABSENT');
+    });
     testWidgets('allows changing attendance status and saving notes', (
       tester,
     ) async {
@@ -265,6 +299,132 @@ void main() {
   });
 
   group('AttendanceReportScreen Full Feature Tests', () {
+    for (final duplicate in [false, true]) {
+      testWidgets(
+        duplicate
+            ? 'duplicate records block editing and export'
+            : 'historical attendance survives current roster changes',
+        (tester) async {
+          tester.view.physicalSize = const Size(1500, 900);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(() {
+            tester.view.resetPhysicalSize();
+            tester.view.resetDevicePixelRatio();
+          });
+          final repo = MockAttendanceRepository();
+          repo.sessions = [
+            const SessionModel(
+              sessionId: 'SES001',
+              classId: 'CLS_PRM393_SE1848',
+              date: '2026-09-18',
+              slot: 3,
+              startTime: '12:30',
+              endTime: '15:00',
+              status: 'CLOSED',
+              currentToken: '',
+              tokenExpiredAt: '',
+              createdBy: 'LEC001',
+            ),
+          ];
+          repo.records = duplicate
+              ? [sampleRecords.first, sampleRecords.first]
+              : List.of(sampleRecords);
+          await tester.pumpWidget(
+            MaterialApp(
+              home: AttendanceReportScreen(
+                lecturer: sampleLecturer,
+                classes: const [sampleClass],
+                schedules: const [],
+                attendanceRepository: repo,
+                scheduleRepository: ReportRosterRepository(),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          final records = tester
+              .widget<ReportTable>(find.byType(ReportTable))
+              .records;
+          if (duplicate) {
+            expect(records, isEmpty);
+            expect(find.textContaining('Trùng bản ghi'), findsOneWidget);
+            expect(find.text('Xuất Excel (.xlsx)'), findsNothing);
+          } else {
+            expect(records, hasLength(3));
+            expect(records.map((r) => r.studentCode), contains('SE181848'));
+          }
+        },
+      );
+    }
+    testWidgets(
+      'missing attendance can be saved and refreshed with a real record ID',
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(1400, 1000));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        final repo = DemoAttendanceRepository();
+        final session = await repo.startSession(
+          classId: sampleClass.classId,
+          slot: 3,
+          date: '2026-09-25',
+          startTime: '12:30',
+          endTime: '15:00',
+          lecturerId: sampleLecturer.lecturerId,
+        );
+        await repo.closeSession(session.sessionId);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: AttendanceReportScreen(
+              lecturer: sampleLecturer,
+              classes: const [sampleClass],
+              schedules: const [sampleSchedule],
+              attendanceRepository: repo,
+              scheduleRepository: ReportRosterRepository(),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          tester
+              .widget<ReportTable>(find.byType(ReportTable))
+              .records
+              .single
+              .status,
+          'ABSENT',
+        );
+        expect(
+          tester
+              .widget<ReportTable>(find.byType(ReportTable))
+              .records
+              .single
+              .attendanceId,
+          'absent-SE181850',
+        );
+        await tester.tap(find.text('SE181850'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Có mặt'));
+        await tester.pump();
+        await tester.tap(find.text('Lưu thay đổi'));
+        await tester.pumpAndSettle();
+        final saved = (await repo.getSessionAttendance(
+          session.sessionId,
+        )).single;
+        expect(saved.status, 'PRESENT');
+        final shown = tester
+            .widget<ReportTable>(find.byType(ReportTable))
+            .records
+            .single;
+        expect(shown.attendanceId, saved.attendanceId);
+        expect(shown.status, 'PRESENT');
+        await tester.tap(find.text('SE181850'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Vắng mặt'));
+        await tester.tap(find.text('Lưu thay đổi'));
+        await tester.pumpAndSettle();
+        expect(
+          (await repo.getSessionAttendance(session.sessionId)).single.status,
+          'ABSENT',
+        );
+      },
+    );
     testWidgets('loads and renders class attendance summary metrics', (
       tester,
     ) async {

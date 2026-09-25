@@ -12,6 +12,14 @@
 
 ## Cập nhật môi trường đang chạy
 
+### Sửa lỗi báo cáo và xác thực ngày 25/09/2026
+
+- Chọn lớp xem roster; các slot sắp tới không tự chuyển sang Báo cáo. Dùng nút Xem điểm danh theo ngày để mở báo cáo.
+- Sửa một dòng vắng chưa có bản ghi sẽ tạo bản ghi thật sau khi kiểm tra chủ phiên và enrollment. Gửi lại không tạo trùng. Sau lưu, app bỏ cache của phiên và tải lại đúng ngày/slot đang xem.
+- Code trong editor Apps Script và code tại URL `/exec` có thể khác phiên bản. Chỉ Save chưa cập nhật deployment đã phát hành. Khi kiểm tra ngày 25/09, gọi `studentSessionInfo` với token rỗng tại URL cấu hình trả `Cần đăng nhập Google.` (luồng giảng viên), trong khi code hiện tại phải trả `Vui lòng đăng nhập email trường.` hoặc thông báo thiếu `GOOGLE_WEB_CLIENT_ID`.
+- Để cập nhật: Deploy → Manage deployments → chọn đúng deployment có URL khớp `web_hosting/public/config.js` → Edit → Version: New version → Deploy. Nếu dùng URL mới, phải cập nhật cả web lẫn desktop và build/deploy lại.
+- `GOOGLE_WEB_CLIENT_ID` phải khớp `googleWebClientId` trong web, không thay `GOOGLE_CLIENT_ID` của desktop. Lỗi `Load failed` chưa đủ xác định nguyên nhân: cần kiểm tra kết nối và quyền truy cập web app (Anyone, Execute as chủ script). Bản web mới có thông báo phân biệt lỗi tải API, phản hồi không phải JSON và API giảng viên cũ.
+
 Các thay đổi local phải được cập nhật đồng bộ; không chỉ thay file Flutter.
 
 1. Google Cloud → APIs & Services → Credentials: kiểm tra Client ID dùng cho trang sinh viên thuộc loại **Web application**. Client ID công khai đã được điền trong `web_hosting/public/config.js`. Không đặt Client Secret vào web/extension. Nếu ID hiện tại thuộc Desktop app, tạo Web application ID rồi thay `googleWebClientId` ở file này và property ở bước 2; giữ ID desktop riêng.

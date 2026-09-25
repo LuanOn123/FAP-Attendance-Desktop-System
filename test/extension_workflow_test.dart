@@ -45,7 +45,12 @@ void main() {
         temp.deleteSync(recursive: true);
       });
       await tester.runAsync(
-        () => bridge.start(schedules, 'demo-lecturer', port: 0),
+        () => bridge.start(
+          schedules,
+          'demo-lecturer',
+          port: 0,
+          attendanceRepository: attendance,
+        ),
       );
       await tester.pumpWidget(
         MaterialApp(
@@ -121,12 +126,56 @@ void main() {
       await tester.tap(find.text('Báo cáo / Excel'));
       await tester.pumpAndSettle();
       expect(find.text('Báo cáo & Đồng bộ FAP'), findsOneWidget);
-      expect(find.text('Le Thi B'), findsOneWidget);
       await tester.runAsync(() async {
-        await tester.tap(find.text('Xuất Excel (.xlsx)'));
-        for (var i = 0; i < 100 && !target.existsSync(); i++) {
-          await Future<void>.delayed(const Duration(milliseconds: 20));
+        final client = LoopbackHttpOverrides().createHttpClient(null);
+        try {
+          final request = await client.postUrl(
+            Uri.parse(
+              'http://127.0.0.1:${bridge.port}/api/integration/fap/report',
+            ),
+          );
+          request.headers.contentType = ContentType.json;
+          request.headers.set('X-FAP-Attendance-Client', 'browser-extension');
+          request.write(jsonEncode({'selectedReport': true}));
+          final response = await request.close();
+          final body = jsonDecode(await utf8.decoder.bind(response).join());
+          expect(response.statusCode, 200);
+          expect(body['data']['sessionId'], session.sessionId);
+          expect(body['data']['matchMode'], 'selectedReport');
+          expect(body['data']['entries'], hasLength(2));
+        } finally {
+          client.close(force: true);
         }
+      });
+      expect(find.text('Le Thi B'), findsOneWidget);
+      await tester.tap(find.text('Le Thi B'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text('Có mặt'),
+        ),
+      );
+      await tester.pump();
+      await tester.enterText(find.byType(TextField), 'Xác nhận sau buổi học');
+      await tester.tap(find.text('Lưu thay đổi'));
+      await tester.pumpAndSettle();
+      expect(
+        (await attendance.getSessionAttendance(
+          session.sessionId,
+        )).where((r) => r.status == 'PRESENT'),
+        hasLength(2),
+      );
+      await tester.runAsync(() async {
+        final export =
+            tester
+                    .widget<FilledButton>(
+                      find.widgetWithText(FilledButton, 'Xuất Excel (.xlsx)'),
+                    )
+                    .onPressed!
+                as Future<void> Function();
+        // File creation precedes flush completion; await the whole export.
+        await export();
       });
       await tester.pumpAndSettle();
       expect(target.existsSync(), isTrue);
@@ -137,7 +186,8 @@ void main() {
       expect(sheet, contains('SE123456'));
       expect(sheet, contains('SE123457'));
       expect(sheet, contains('PRESENT'));
-      expect(sheet, contains('ABSENT'));
+      expect(sheet, isNot(contains('ABSENT')));
+      expect(sheet, contains('Xác nhận sau buổi học'));
       expect(sheet, contains('Nguyen Van A'));
       expect(sheet, contains('Le Thi B'));
       await tester.pumpWidget(const SizedBox.shrink());

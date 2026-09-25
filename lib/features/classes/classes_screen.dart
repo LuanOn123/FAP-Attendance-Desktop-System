@@ -168,14 +168,6 @@ class _ClassesScreenState extends State<ClassesScreen> {
               subtitle: Text(
                 '${lesson.startTime} – ${lesson.endTime} · ${lesson.room}',
               ),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: widget.onOpenReport == null
-                  ? null
-                  : () => widget.onOpenReport!(
-                      selected.key,
-                      ScheduleClock.date(ScheduleClock.next(lesson)),
-                      lesson.slot,
-                    ),
             ),
           OutlinedButton.icon(
             icon: const Icon(Icons.history),

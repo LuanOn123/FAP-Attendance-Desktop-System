@@ -18,6 +18,12 @@ test('desktop preview reads automatically but writes only after teacher click; c
   w.eval(read('fap-attendance-extension/content/fapAttendanceWriter.js'));
   const data=w.FapAttendanceScanner.scan(w.document);
   let payload={source:'desktop',sessionId:'session1',metadata:{courseCode:data.course.courseCode,classCode:data.class.classCode,...data.session},entries:data.students.map((s,i)=>({studentCode:s.studentCode,status:i===0?'present':'absent'}))};
+  // Desktop matching uses class + date/slot/time, independent of course label.
+  payload.metadata.courseCode = 'OTHER123';
+  payload.matchMode = 'selectedReport';
+  payload.entries.forEach((entry,i) => entry.fullName = data.students[i].fullName);
+  payload.metadata.date = '2020-01-01';
+  payload.metadata.slot = 12;
   const before=[...w.document.querySelectorAll('input[type=radio]')].map(i=>i.checked);
   let submitted=0;w.document.addEventListener('submit',e=>{submitted++;e.preventDefault();});
   w.eval(read('fap-attendance-extension/content/fapSyncPanel.js'));await flush();
@@ -29,8 +35,8 @@ test('desktop preview reads automatically but writes only after teacher click; c
   assert.deepEqual([...w.document.querySelectorAll('input[type=radio]')].map(i=>i.checked),before);
   button.click();await flush();
   assert.ok(shadow.textContent.includes('Đã điền ' + data.students.length + ' sinh viên'));assert.equal(submitted,0);
-  payload={...payload,metadata:{...payload.metadata,startTime:'10:00'}};
-  button.click();await flush();assert.equal(button.disabled,true);assert.match(shadow.textContent,/Giờ học/);
+  payload={...payload,entries:payload.entries.map((entry,i)=>i===0?{...entry,fullName:'Wrong name'}:entry)};
+  button.click();await flush();assert.equal(button.disabled,true);assert.match(shadow.textContent,/Họ tên/);
   dom.window.close();
 });
 

@@ -5,6 +5,22 @@ const path = require('node:path');
 const {JSDOM} = require('../../.tools/extension-tests/node_modules/jsdom');
 const {scan} = require('../content/fapAttendanceScanner.js');
 
+test('semantic row IDs win with extra/reordered columns and compound headers', () => {
+  const dom = new JSDOM(`<table id="ctl00_mainContent_gvStudents"><tr><th> Full   Name </th><th>Topic</th><th>Member Code / Roll Number</th></tr>
+    <tr data-student-code="se183277"><td>Student A</td><td>Example</td><td>SE999999</td></tr>
+    <tr><td>Student B</td><td>Example</td><td>SE123456</td></tr></table>`);
+  assert.deepEqual(scan(dom.window.document).students.map(s => s.studentCode), ['SE183277', 'SE123456']);
+  dom.window.close();
+});
+
+test('missing table differs from table without valid codes', () => {
+  const wrong = new JSDOM('<p>Other page</p>');
+  assert.throws(() => scan(wrong.window.document), e => e.code === 'STUDENT_TABLE_NOT_FOUND');
+  const empty = new JSDOM('<table id="ctl00_mainContent_gvStudents"><tr><td>Unknown</td></tr></table>');
+  assert.throws(() => scan(empty.window.document), e => e.code === 'STUDENT_CODES_NOT_FOUND');
+  wrong.window.close(); empty.window.close();
+});
+
 test('card layout: extract actual course, class, date and four students', () => {
   const doc = new JSDOM(`<div class="course-info"><h1>Lập Trình Web (SWE102)</h1>
     <p>Giảng viên: Tran Van B &bull; Lớp: SE1701 &bull; Ngày: 18/09/2026</p></div>

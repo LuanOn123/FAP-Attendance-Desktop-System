@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_palette.dart';
 import '../../../models/attendance_record.dart';
+import '../../../core/app_config.dart';
 
 /// Dialog cho phép giảng viên chỉnh sửa trạng thái điểm danh thủ công
 class ManualUpdateDialog extends StatefulWidget {
@@ -21,6 +22,7 @@ class _ManualUpdateDialogState extends State<ManualUpdateDialog> {
   late String _selectedStatus;
   final _noteCtrl = TextEditingController();
   bool _saving = false;
+  String? _error;
 
   @override
   void initState() {
@@ -36,22 +38,22 @@ class _ManualUpdateDialogState extends State<ManualUpdateDialog> {
   }
 
   Color _statusColor(String s) => switch (s) {
-        'PRESENT' => Colors.green,
-        'LATE' => Colors.orange,
-        _ => Colors.red.shade700,
-      };
+    'PRESENT' => Colors.green,
+    'LATE' => Colors.orange,
+    _ => Colors.red.shade700,
+  };
 
   IconData _statusIcon(String s) => switch (s) {
-        'PRESENT' => Icons.check_circle,
-        'LATE' => Icons.access_time,
-        _ => Icons.cancel,
-      };
+    'PRESENT' => Icons.check_circle,
+    'LATE' => Icons.access_time,
+    _ => Icons.cancel,
+  };
 
   String _statusLabel(String s) => switch (s) {
-        'PRESENT' => 'Có mặt',
-        'LATE' => 'Đi muộn',
-        _ => 'Vắng mặt',
-      };
+    'PRESENT' => 'Có mặt',
+    'LATE' => 'Đi muộn',
+    _ => 'Vắng mặt',
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -117,6 +119,9 @@ class _ManualUpdateDialogState extends State<ManualUpdateDialog> {
               ),
             ),
             const SizedBox(height: 20),
+
+            if (_error != null)
+              Text(_error!, style: const TextStyle(color: Colors.red)),
 
             // Status Selector
             const Text(
@@ -198,15 +203,27 @@ class _ManualUpdateDialogState extends State<ManualUpdateDialog> {
           child: const Text('Hủy'),
         ),
         FilledButton.icon(
-          onPressed: _saving
+          onPressed:
+              _saving ||
+                  !['PRESENT', 'LATE', 'ABSENT'].contains(_selectedStatus)
               ? null
               : () async {
-                  setState(() => _saving = true);
+                  setState(() {
+                    _saving = true;
+                    _error = null;
+                  });
                   try {
                     await widget.onSave(_selectedStatus, _noteCtrl.text.trim());
                     if (context.mounted) Navigator.pop(context, true);
-                  } catch (_) {
-                    if (context.mounted) setState(() => _saving = false);
+                  } catch (e) {
+                    if (context.mounted) {
+                      setState(() {
+                        _saving = false;
+                        _error = e is AppException
+                            ? e.message
+                            : 'Không lưu được thay đổi. Vui lòng thử lại.';
+                      });
+                    }
                   }
                 },
           style: FilledButton.styleFrom(backgroundColor: AppPalette.orange),
@@ -214,7 +231,10 @@ class _ManualUpdateDialogState extends State<ManualUpdateDialog> {
               ? const SizedBox(
                   width: 16,
                   height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
                 )
               : const Icon(Icons.save),
           label: const Text('Lưu thay đổi'),

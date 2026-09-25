@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fap_attendance/features/attendance/attendance_screen.dart';
+import 'package:fap_attendance/features/classes/classes_screen.dart';
 import 'package:fap_attendance/features/attendance/session_qr_widget.dart';
 import 'package:fap_attendance/models/class_model.dart';
 import 'package:fap_attendance/models/lecturer.dart';
@@ -48,6 +49,34 @@ class CurrentScheduleRepository extends DemoScheduleRepository {
 }
 
 void main() {
+  testWidgets('class selection and upcoming slot do not navigate to reports', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1400, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    var openedReport = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ClassesScreen(
+            classes: const [cls],
+            schedules: const [schedule],
+            lecturerId: lecturer.lecturerId,
+            repository: CurrentScheduleRepository(),
+            onChanged: () async {},
+            onOpenReport: (_, _, _) => openedReport = true,
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byType(ChoiceChip));
+    await tester.pumpAndSettle();
+    expect(find.text('Các slot sắp tới'), findsOneWidget);
+    await tester.tap(find.byType(ListTile));
+    await tester.pumpAndSettle();
+    expect(openedReport, false);
+    expect(find.text('Lớp học & sinh viên'), findsOneWidget);
+  });
   test('Sheets localized dates and statuses identify the same closed slot', () {
     final session = SessionModel.fromJson({
       'date': '22/9/2026',

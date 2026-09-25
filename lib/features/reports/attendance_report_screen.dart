@@ -11,7 +11,6 @@ import '../../models/schedule.dart';
 import '../../models/session_model.dart';
 import '../../repositories/attendance_repository.dart';
 import '../../repositories/schedule_repository.dart';
-import '../../services/class_mapping_service.dart';
 import '../../services/excel_export_service.dart';
 import 'widgets/manual_update_dialog.dart';
 import 'widgets/report_table.dart';
@@ -28,6 +27,7 @@ class AttendanceReportScreen extends StatefulWidget {
   final ScheduleRepository? scheduleRepository;
   final String? initialClassKey;
   final String? initialDateOption;
+  final void Function(String? classId, String? sessionId)? onReportSelected;
 
   const AttendanceReportScreen({
     super.key,
@@ -38,6 +38,7 @@ class AttendanceReportScreen extends StatefulWidget {
     this.scheduleRepository,
     this.initialClassKey,
     this.initialDateOption,
+    this.onReportSelected,
   });
 
   @override
@@ -54,15 +55,11 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
   bool _exportingExcel = false;
   bool _exportingCsv = false;
   String? _error;
+  int _classRequest = 0;
+  int _recordsRequest = 0;
 
   List<ClassModel> get _mappedClasses {
-    final svc = ClassMappingService();
-    final mapped = widget.classes.where((c) {
-      return widget.schedules.any(
-        (s) => svc.map(s, widget.classes).mappedClass?.classId == c.classId,
-      );
-    }).toList();
-    return mapped.isNotEmpty ? mapped : widget.classes;
+    return widget.classes;
   }
 
   /// Danh sách các buổi học (Ngày + Slot) duy nhất của lớp
@@ -76,7 +73,15 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
       options.add('${s.date}|${s.slot}');
     }
     final list = options.toList();
-    list.sort((a, b) => b.compareTo(a)); // Mới nhất lên đầu
+    list.sort((a, b) {
+      final left = a.split('|'), right = b.split('|');
+      final date = right.first.compareTo(left.first);
+      return date != 0
+          ? date
+          : (int.tryParse(right.last) ?? 0).compareTo(
+              int.tryParse(left.last) ?? 0,
+            );
+    });
     return list;
   }
 
@@ -108,7 +113,6 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
 
   final Map<String, List<SessionModel>> _sessionsCache = {};
   final Map<String, List<RosterStudent>> _rosterCache = {};
-  final Map<String, List<AttendanceRecord>> _attendanceCache = {};
 
   @override
   void initState() {
@@ -124,11 +128,14 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
   }
 
   Future<void> _loadAttendance({bool forceRefresh = false}) async {
+    widget.onReportSelected?.call(null, null);
     if (_selectedClass == null) return;
+    final request = ++_classRequest;
+    ++_recordsRequest;
+    final previousDate = forceRefresh ? _selectedDateOption : null;
     if (forceRefresh) {
       _sessionsCache.clear();
       _rosterCache.clear();
-      _attendanceCache.clear();
     }
 
     setState(() {
@@ -153,7 +160,9 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
             : widget.attendanceRepository
                   .getSessionsByClass(unifiedClassId)
                   .then((list) {
-                    _sessionsCache[unifiedClassId] = list;
+                    if (request == _classRequest) {
+                      _sessionsCache[unifiedClassId] = list;
+                    }
                     return list;
                   }),
         _rosterCache.containsKey(cls.key)
@@ -169,7 +178,9 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
                           ),
                         )
                         .then((list) {
-                          _rosterCache[cls.key] = list;
+                          if (request == _classRequest) {
+                            _rosterCache[cls.key] = list;
+                          }
                           return list;
                         })
                   : Future.value(<RosterStudent>[])),
@@ -177,7 +188,7 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
 
       final List<SessionModel> sessions = List<SessionModel>.from(
         results[0] as List,
-      );
+      ).where((s) => s.status != 'RESET').toList();
       final List<RosterStudent> roster = List<RosterStudent>.from(
         results[1] as List,
       );
@@ -188,15 +199,16 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
         return b.slot.compareTo(a.slot);
       });
 
-      if (mounted) {
+      if (mounted && request == _classRequest) {
         setState(() {
           _sessions = sessions;
           _roster = roster;
           final dateOpts = _dateOptions;
           if (dateOpts.isNotEmpty) {
-            _selectedDateOption =
-                _selectedClass?.key == widget.initialClassKey &&
-                    dateOpts.contains(widget.initialDateOption)
+            _selectedDateOption = dateOpts.contains(previousDate)
+                ? previousDate
+                : _selectedClass?.key == widget.initialClassKey &&
+                      dateOpts.contains(widget.initialDateOption)
                 ? widget.initialDateOption
                 : dateOpts.first;
           } else {
@@ -209,7 +221,7 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
         }
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && request == _classRequest) {
         setState(
           () => _error = e is AppException
               ? e.message
@@ -217,11 +229,13 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && request == _classRequest) setState(() => _loading = false);
     }
   }
 
   Future<void> _loadRecordsForSelectedDate() async {
+    widget.onReportSelected?.call(null, null);
+    final request = ++_recordsRequest;
     if (_selectedClass == null) {
       setState(() => _records = []);
       return;
@@ -230,6 +244,7 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
     setState(() {
       _loading = true;
       _error = null;
+      _records = [];
     });
 
     try {
@@ -259,24 +274,20 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
         }
         return;
       }
+      if (targetSessions.length != 1) {
+        throw AppException(
+          'Có nhiều phiên cho cùng ngày và slot. Cần kiểm tra dữ liệu trước khi sửa hoặc xuất.',
+        );
+      }
 
       // Fetch attendance in parallel for targetSessions (sử dụng cache nếu đã tải)
       final List<AttendanceRecord> allRaw = [];
       final List<Future<List<AttendanceRecord>>> futures = [];
 
       for (final s in targetSessions) {
-        if (_attendanceCache.containsKey(s.sessionId)) {
-          allRaw.addAll(_attendanceCache[s.sessionId]!);
-        } else {
-          futures.add(
-            widget.attendanceRepository.getSessionAttendance(s.sessionId).then((
-              list,
-            ) {
-              _attendanceCache[s.sessionId] = list;
-              return list;
-            }),
-          );
-        }
+        futures.add(
+          widget.attendanceRepository.getSessionAttendance(s.sessionId),
+        );
       }
 
       if (futures.isNotEmpty) {
@@ -285,26 +296,23 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
           allRaw.addAll(r);
         }
       }
+      if (!mounted || request != _recordsRequest) return;
 
       // Gộp các bản ghi QR theo MSSV
       final Map<String, AttendanceRecord> qrMerged = {};
       for (final r in allRaw) {
         final code = r.studentCode.trim().toUpperCase();
-        if (code.isEmpty) continue;
+        if (code.isEmpty || r.sessionId != targetSessions.single.sessionId) {
+          throw const AppException(
+            'Bản ghi thiếu MSSV hoặc không thuộc phiên đã chọn.',
+          );
+        }
         if (!qrMerged.containsKey(code)) {
           qrMerged[code] = r;
         } else {
-          final existing = qrMerged[code]!;
-          if (r.isPresent && !existing.isPresent) {
-            qrMerged[code] = r;
-          } else if (r.isLate && existing.isAbsent) {
-            qrMerged[code] = r;
-          } else if (r.status == existing.status && r.checkInTime.isNotEmpty) {
-            if (existing.checkInTime.isEmpty ||
-                r.checkInTime.compareTo(existing.checkInTime) < 0) {
-              qrMerged[code] = r;
-            }
-          }
+          throw AppException(
+            'Trùng bản ghi điểm danh của $code trong phiên. Cần kiểm tra dữ liệu.',
+          );
         }
       }
 
@@ -344,14 +352,26 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
         // Chưa nhập danh sách: hiển thị những sinh viên đã quét QR của phiên lớp này
         finalList = qrMerged.values.toList();
       }
+      final displayed = finalList
+          .map((r) => r.studentCode.trim().toUpperCase())
+          .toSet();
+      finalList.addAll(
+        qrMerged.entries
+            .where((e) => !displayed.contains(e.key))
+            .map((e) => e.value),
+      );
 
       finalList.sort((a, b) => a.studentCode.compareTo(b.studentCode));
 
-      if (mounted) {
+      if (mounted && request == _recordsRequest) {
         setState(() => _records = finalList);
+        widget.onReportSelected?.call(
+          _selectedClass!.classId,
+          targetSessions.single.sessionId,
+        );
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && request == _recordsRequest) {
         setState(
           () => _error = e is AppException
               ? e.message
@@ -359,11 +379,14 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && request == _recordsRequest) {
+        setState(() => _loading = false);
+      }
     }
   }
 
   Future<void> _openManualUpdate(int idx) async {
+    if (_loading || _error != null) return;
     final record = _records[idx];
     final updated = await showDialog<bool>(
       context: context,
@@ -373,24 +396,18 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
         onSave: (status, note) async {
           await widget.attendanceRepository.updateAttendanceStatus(
             attendanceId: record.attendanceId,
+            sessionId: record.sessionId,
+            studentCode: record.studentCode,
             status: status,
             note: note,
             updatedBy: widget.lecturer.email,
           );
-          if (mounted) {
-            setState(() {
-              _records[idx] = record.copyWith(
-                status: status,
-                note: note,
-                updatedAt: DateTime.now().toIso8601String(),
-                updatedBy: widget.lecturer.email,
-              );
-            });
-          }
         },
       ),
     );
     if (updated == true && mounted) {
+      await _loadRecordsForSelectedDate();
+      if (!mounted || _error != null) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Đã cập nhật trạng thái điểm danh.'),
@@ -403,7 +420,7 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
   String _formatTime(String rawTime) {
     if (rawTime.isEmpty) return '—';
     try {
-      final dt = DateTime.parse(rawTime).toLocal();
+      final dt = DateTime.parse(rawTime).toUtc().add(const Duration(hours: 7));
       return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} '
           '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
     } catch (_) {
@@ -423,12 +440,26 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
   }
 
   Future<void> _exportExcel() async {
-    if (_records.isEmpty || _selectedClass == null) return;
+    if (_loading ||
+        _error != null ||
+        _records.isEmpty ||
+        _selectedClass == null) {
+      return;
+    }
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _exportingExcel = true);
     try {
       final cls = _selectedClass!;
       final dateTag = _currentExportDateTag();
+      await _loadRecordsForSelectedDate();
+      if (!mounted ||
+          _error != null ||
+          _records.isEmpty ||
+          _selectedClass != cls ||
+          _currentExportDateTag() != dateTag ||
+          !_validateExport()) {
+        return;
+      }
 
       final headers = [
         'STT',
@@ -454,7 +485,7 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
           _formatTime(r.checkInTime),
           r.status, // Tiếng Anh (PRESENT, LATE, ABSENT)
           _fapCode(r.status),
-          '', // Ghi chú để trống
+          r.note,
         ]);
       }
 
@@ -495,12 +526,26 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
   }
 
   Future<void> _exportCsv() async {
-    if (_records.isEmpty || _selectedClass == null) return;
+    if (_loading ||
+        _error != null ||
+        _records.isEmpty ||
+        _selectedClass == null) {
+      return;
+    }
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _exportingCsv = true);
     try {
       final cls = _selectedClass!;
       final dateTag = _currentExportDateTag();
+      await _loadRecordsForSelectedDate();
+      if (!mounted ||
+          _error != null ||
+          _records.isEmpty ||
+          _selectedClass != cls ||
+          _currentExportDateTag() != dateTag ||
+          !_validateExport()) {
+        return;
+      }
 
       final buf = StringBuffer();
       buf.write('\uFEFF');
@@ -510,13 +555,18 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
 
       for (int i = 0; i < _records.length; i++) {
         final r = _records[i];
-        final time = _formatTime(r.checkInTime).replaceAll(',', ' ');
-        final name = r.fullName.replaceAll(',', ' ');
-        final fap = _fapCode(r.status);
-        final statusEnglish = r.status;
-        const note = '';
         buf.writeln(
-          '${i + 1},${cls.classCode},${cls.subjectCode},${r.studentCode},$name,$time,$statusEnglish,$fap,$note',
+          [
+            '${i + 1}',
+            cls.classCode,
+            cls.subjectCode,
+            r.studentCode,
+            r.fullName,
+            _formatTime(r.checkInTime),
+            r.status,
+            _fapCode(r.status),
+            r.note,
+          ].map((value) => '"${value.replaceAll('"', '""')}"').join(','),
         );
       }
 
@@ -555,6 +605,22 @@ class _AttendanceReportScreenState extends State<AttendanceReportScreen> {
     'LATE' => 'L',
     _ => 'A',
   };
+
+  bool _validateExport() {
+    if (_records.every(
+      (r) => ['PRESENT', 'LATE', 'ABSENT'].contains(r.status),
+    )) {
+      return true;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Cần xác nhận các dòng chưa có trạng thái hợp lệ trước khi xuất FAP.',
+        ),
+      ),
+    );
+    return false;
+  }
 
   @override
   Widget build(BuildContext context) {

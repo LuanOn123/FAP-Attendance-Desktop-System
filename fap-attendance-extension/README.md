@@ -44,3 +44,12 @@ node --test fap-attendance-extension/test/*.test.cjs
 ```
 
 The real-workbook fixture test is enabled by `FAP_EXCEL_FIXTURE`; it verifies all 35 choices, counters and the lack of automatic submission. Other tests use generated in-memory workbooks and DOM fixtures, including a mocked Chrome popup message transport. Browser installation and live FAP compatibility require testing in Chrome/Edge with the real lecturer page.
+# Lưu ý Excel → HTML test
+
+Sau khi cập nhật extension, Reload tại `chrome://extensions` rồi reload cả tab HTML. Với file cục bộ, bật Details → Allow access to file URLs.
+
+Scanner hỗ trợ `tr[data-student-code]`, `Member Code / Roll Number` và header aliases. Điền theo MSSV, không theo thứ tự dòng. Quét lại giữ Excel đã chọn và đối chiếu lại. Extension chỉ điền trạng thái; giảng viên tự bấm Lưu.
+
+Trang và Excel có thông tin lớp/môn/ngày/slot khác nhau sẽ bị chặn. HTML gốc dự án hiện ghi 22/09/2026 Slot 4, còn file `Diemdanh_PRM393_SE1922_2026-09-25_Slot3.xlsx` ghi 25/09/2026 Slot 3. Cần mở đúng buổi trước khi nhập.
+
+Chi tiết audit và giới hạn kiểm thử: `../docs/EXCEL_FAP_IMPORT_AUDIT.md`.

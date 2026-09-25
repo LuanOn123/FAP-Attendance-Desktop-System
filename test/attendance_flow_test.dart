@@ -137,6 +137,28 @@ void main() {
       );
       await attendance.closeSession(session.sessionId);
       await expectLater(sync.report(query), throwsA(anything));
+      await expectLater(
+        sync.report({'selectedReport': true}),
+        throwsA(anything),
+      );
+      final selected = await sync.report(
+        {'selectedReport': true, 'date': '2000-01-01', 'slot': 12},
+        selectedClassId: cls.classId,
+        selectedSessionId: session.sessionId,
+      );
+      final selectedData = selected['data'] as Map;
+      expect(selectedData['matchMode'], 'selectedReport');
+      expect(selectedData['metadata']['date'], imported.date);
+      expect((selectedData['entries'] as List).map((e) => e['status']), [
+        'present',
+        'absent',
+      ]);
+      expect(
+        (selectedData['entries'] as List).every(
+          (e) => (e['fullName'] as String).isNotEmpty,
+        ),
+        true,
+      );
       await attendance.markAbsent(
         sessionId: session.sessionId,
         studentCodes: ['SE123457'],
@@ -188,13 +210,23 @@ void main() {
         {'date': '2026-09-19'},
         {'startTime': '07:00'},
         {'classCode': 'SE9999'},
-        {'courseCode': 'PRN232'},
       ]) {
         await expectLater(
           sync.report({...query, ...mismatch}),
           throwsA(anything),
         );
       }
+      final withoutCourse = Map<String, dynamic>.from(query)
+        ..remove('courseCode');
+      expect((await sync.report(withoutCourse))['success'], true);
+      expect(
+        (await sync.report({
+          ...query,
+          'courseCode': 'OTHER',
+          'semester': 'OTHER',
+        }))['success'],
+        true,
+      );
       final reset = await attendance.resetSession(session.sessionId);
       expect(reset.currentSecretCode, isEmpty);
       expect(

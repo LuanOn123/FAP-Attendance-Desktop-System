@@ -62,3 +62,17 @@ test('file URL permission is actionable rather than a silent scan failure', asyn
   assert.equal(dom.window.document.getElementById('btn-send').disabled, true);
   dom.window.close();
 });
+
+test('failed reinjection reports content connection failure, not missing students', async () => {
+  const dom = new JSDOM(fs.readFileSync(path.join(__dirname, '../popup/popup.html'), 'utf8'), {runScripts:'outside-only'});
+  dom.window.chrome = {
+    runtime: {sendMessage: async () => ({status:'ok'})},
+    tabs: {query: async () => [{id:7,url:'https://fap.fpt.edu.vn/Attendance.aspx'}], sendMessage: async () => {throw new Error('Receiving end does not exist');}},
+    scripting: {executeScript: async () => {throw new Error('No tab with id');}}
+  };
+  dom.window.eval(fs.readFileSync(path.join(__dirname, '../popup/popup.js'), 'utf8'));
+  await until(() => dom.window.document.querySelector('#status-text').textContent.includes('CONTENT_SCRIPT_NOT_AVAILABLE'));
+  assert.equal(dom.window.document.querySelector('#btn-send').disabled,true);
+  assert.match(dom.window.document.querySelector('#desktop-text').textContent,/đã kết nối/);
+  dom.window.close();
+});

@@ -3,13 +3,52 @@
   if (globalThis.__fapScannerInstalled) return;
   globalThis.__fapScannerInstalled = true;
   const normalize = value => String(value || "").normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").toLowerCase().trim();
+    .replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").toLowerCase().replace(/\s+/g, ' ').trim();
   const clean = node => (node?.textContent || "").replace(/\s+/g, " ").trim();
   const aliases = {
-    studentCode: ["student id", "student code", "roll number", "roll no", "rollnumber", "mssv", "ma sinh vien", "code"],
+    studentCode: ["student id", "student code", "roll number", "roll no", "rollnumber", "mssv", "ma sinh vien", "code", "member code", "member code / roll number"],
     fullName: ["student name", "full name", "ho va ten", "name", "ten"],
     email: ["email", "mail"], image: ["image", "photo", "avatar", "anh"]
   };
+
+  // Scanner and writer share the same DOM identity rules; never use row order.
+  function studentRows(doc) {
+    const cards = [...doc.querySelectorAll('.student-card')];
+    if (cards.length) return cards.map(row => ({row,
+      code: clean(row.querySelector('.student-code')),
+      name: clean(row.querySelector('h3')),
+      email: clean(row.querySelector('.student-meta span:last-child'))}));
+    const result = [];
+    let tableFound = false;
+    for (const table of doc.querySelectorAll('table')) {
+      const rows = [...table.rows];
+      let columns = {}, headerIndex = -1;
+      for (let i = 0; i < Math.min(rows.length, 8); i++) {
+        const map = {};
+        [...rows[i].cells].forEach((cell, index) => {
+          for (const [key, names] of Object.entries(aliases)) {
+            if (names.includes(normalize(clean(cell)))) map[key] = index;
+          }
+        });
+        if (map.fullName !== undefined && (map.studentCode !== undefined || table.querySelector('tr[data-student-code]'))) {
+          columns = map; headerIndex = i; break;
+        }
+      }
+      const tagged = rows.filter(row => row.hasAttribute('data-student-code'));
+      if (headerIndex < 0 && !tagged.length && table.id !== 'ctl00_mainContent_gvStudents') continue;
+      tableFound = true;
+      const candidates = headerIndex >= 0 ? rows.slice(headerIndex + 1) : tagged;
+      for (const row of candidates) {
+        if (!row.querySelector('td')) continue;
+        result.push({row,
+          code: row.dataset.studentCode || clean(row.cells[columns.studentCode]),
+          name: row.dataset.fullName || clean(row.cells[columns.fullName]),
+          email: row.dataset.email || clean(row.cells[columns.email])});
+      }
+    }
+    if (!tableFound) throw Object.assign(new Error('Không tìm thấy bảng điểm danh sinh viên trên trang hiện tại.'), {code: 'STUDENT_TABLE_NOT_FOUND'});
+    return result;
+  }
 
   function label(doc, names) {
     // Do not read large parent divs: they contain multiple unrelated labels.
@@ -57,50 +96,28 @@
       if (!code || !name) return;
       const old = students.get(code);
       if (old && (old.fullName !== name || old.email !== email)) throw new Error("MSSV trùng với thông tin khác: " + code);
-      students.set(code, {studentCode: code, fullName: name, email});
+      students.set(code, { studentCode: code, fullName: name, email });
     }
-    const cards = doc.querySelectorAll(".student-card");
-    for (const card of cards) add(clean(card.querySelector(".student-code")),
-      clean(card.querySelector("h3")), clean(card.querySelector(".student-meta span:last-child")));
-    if (!students.size) {
-      for (const table of doc.querySelectorAll("table")) {
-        const rows = [...table.querySelectorAll("tr")];
-        let headerIndex = -1, columns = {};
-        for (let i = 0; i < Math.min(rows.length, 8); i++) {
-          const cells = [...rows[i].querySelectorAll("th, td")];
-          const map = {};
-          cells.forEach((cell, index) => {
-            const text = normalize(clean(cell));
-            for (const [key, names] of Object.entries(aliases)) {
-              if (names.includes(text)) map[key] = index;
-            }
-          });
-          if (map.studentCode !== undefined && map.fullName !== undefined) {
-            headerIndex = i; columns = map; break;
-          }
-        }
-        if (headerIndex < 0) continue;
-        for (const row of rows.slice(headerIndex + 1)) {
-          const cells = row.querySelectorAll("td");
-          add(clean(cells[columns.studentCode]), clean(cells[columns.fullName]), clean(cells[columns.email]));
-        }
-        if (students.size) break;
-      }
+    const rows = studentRows(doc);
+    for (const row of rows) {
+      if (/^[A-Z]{2,6}\d{4,10}$/i.test(row.code.trim())) add(row.code, row.name || row.code, row.email);
     }
-    if (!students.size) throw new Error("Không tìm thấy danh sách sinh viên. Mở trang điểm danh rồi quét lại.");
+    if (!students.size) throw Object.assign(new Error('Đã tìm thấy bảng nhưng không đọc được MSSV hợp lệ.'), {code: 'STUDENT_CODES_NOT_FOUND'});
+    console.debug('[FAP Scanner]', {tableFound: true, rows: rows.length, students: students.size});
     return {
-      source: "FAP_WEB_DOM", course: {courseCode, courseName: courseLabel.replace(/\s*\([^)]*\)\s*$/, "").trim() || courseCode},
-      class: {classCode}, session: {date, slot, room, startTime, endTime}, students: [...students.values()]
+      source: "FAP_WEB_DOM", course: { courseCode, courseName: courseLabel.replace(/\s*\([^)]*\)\s*$/, "").trim() || courseCode },
+      class: { classCode }, session: { date, slot, room, startTime, endTime }, students: [...students.values()]
     };
   }
   // Export only in the Node test harness.
-  globalThis.FapAttendanceScanner = {scan, isoDate};
-  if (typeof module !== "undefined") module.exports = {scan, isoDate};
+  globalThis.FapAttendanceScanner = { scan, isoDate, studentRows };
+  if (typeof module !== "undefined") module.exports = { scan, isoDate, studentRows };
   if (typeof chrome !== "undefined" && chrome.runtime) {
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       if (request.type !== "SCAN_ATTENDANCE") return;
-      try { sendResponse({success: true, data: scan(document)}); }
-      catch (e) { sendResponse({success: false, message: e.message}); }
+      try { sendResponse({ success: true, data: scan(document) }); }
+      catch (e) { sendResponse({ success: false, code: e.code || 'SCAN_FAILED', message: e.message }); }
     });
   }
 })();
+// flutter run -d windows --dart-define-from-file=config/local.json

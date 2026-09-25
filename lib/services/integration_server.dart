@@ -14,6 +14,16 @@ class IntegrationServer {
   bool _stopped = false;
   bool _importing = false;
   AttendanceSyncService? _sync;
+  String? _reportClassId;
+  String? _reportSessionId;
+  int _reportRevision = 0;
+
+  void selectReport(String? classId, String? sessionId) {
+    _reportClassId = classId;
+    _reportSessionId = sessionId;
+    _reportRevision++;
+  }
+
   final _events = StreamController<FapImportResult>.broadcast();
   Stream<FapImportResult> get onImportComplete => _events.stream;
   int? get port => _server?.port;
@@ -137,7 +147,18 @@ class IntegrationServer {
           if (_sync == null) {
             throw const AppException('Bản app này chưa bật đồng bộ báo cáo.');
           }
-          reply(200, await _sync!.report(json));
+          final revision = _reportRevision;
+          final result = await _sync!.report(
+            json,
+            selectedClassId: _reportClassId,
+            selectedSessionId: _reportSessionId,
+          );
+          if (json['selectedReport'] == true && revision != _reportRevision) {
+            throw const AppException(
+              'Báo cáo trên Desktop vừa thay đổi. Hãy đồng bộ lại.',
+            );
+          }
+          reply(200, result);
           return;
         }
         final result = await service.importSession(FapImportDto.fromJson(json));

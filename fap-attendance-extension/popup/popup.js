@@ -2,6 +2,7 @@ let scannedTabId = null;
 let currentSessionData = null;
 let online = false;
 let busy = false;
+let scanError = '';
 const $ = id => document.getElementById(id);
 const defaults = {
   1: ["07:30", "09:50"], 2: ["10:00", "12:20"], 3: ["12:50", "15:10"],
@@ -23,13 +24,17 @@ function status(text, type) {
 }
 function buttonState() { $("btn-send").disabled = !online || !currentSessionData || busy; }
 async function refresh() {
+  if (busy) return;
   busy = true; currentSessionData = null; scannedTabId = null; buttonState();
+  $('btn-rescan').disabled = true;
   if (typeof resetImportReview === "function") resetImportReview();
   $("btn-send").textContent = "Gửi sang app Điểm danh";
   $("session-info").classList.add("hidden");
   status("Đang quét trang điểm danh…", "scanning");
   await Promise.all([checkDesktop(), scanPage()]);
   busy = false; buttonState();
+  $('btn-rescan').disabled = false;
+  if (typeof reviewSelectedWorkbook === 'function') await reviewSelectedWorkbook();
 }
 async function checkDesktop() {
   online = false;
@@ -43,23 +48,32 @@ async function checkDesktop() {
   $("desktop-status").title = message;
 }
 async function scanPage() {
+  currentSessionData = null; scannedTabId = null; scanError = '';
   try {
     const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
     if (!tab?.id) throw new Error("Không tìm thấy tab hiện tại.");
     const url = new URL(tab.url || "about:blank");
+    console.debug('[FAP Scanner]', {scheme: url.protocol});
     const recognized = url.protocol === "file:" ||
       (["https:", "http:"].includes(url.protocol) && ["fap.fpt.edu.vn", "localhost", "127.0.0.1"].includes(url.hostname));
     if (!recognized) throw new Error("Mở trang điểm danh FAP hoặc attendance.html rồi quét lại.");
     if (url.protocol === "file:" && !await chrome.extension.isAllowedFileSchemeAccess()) {
-      throw new Error('Bật “Allow access to file URLs” trong phần Details của extension rồi tải lại trang HTML.');
+      throw new Error('FILE_URL_ACCESS_DENIED: Extension chưa được cấp quyền đọc file HTML cục bộ. Mở chrome://extensions → Details → Allow access to file URLs rồi tải lại trang HTML.');
     }
     let result;
     try { result = await chrome.tabs.sendMessage(tab.id, {type: "SCAN_ATTENDANCE"}); }
     catch (_) {
-      await chrome.scripting.executeScript({target: {tabId: tab.id}, files: ["content/fapAttendanceScanner.js", "content/fapAttendanceWriter.js"]});
-      result = await chrome.tabs.sendMessage(tab.id, {type: "SCAN_ATTENDANCE"});
+      try {
+        await chrome.scripting.executeScript({target: {tabId: tab.id}, files: ["content/fapAttendanceScanner.js", "content/fapAttendanceWriter.js"]});
+        result = await chrome.tabs.sendMessage(tab.id, {type: "SCAN_ATTENDANCE"});
+      } catch (e) {
+        const permission = /cannot access|permission|not allowed/i.test(e.message);
+        throw new Error((permission ? 'PAGE_ACCESS_DENIED: Không có quyền đọc trang hiện tại.' : 'CONTENT_SCRIPT_NOT_AVAILABLE: Không thể kết nối với trang hiện tại.') + ' Hãy kiểm tra quyền extension, reload trang rồi quét lại.');
+      }
     }
+    console.debug('[FAP Scanner]', {reachable: !!result, success: !!result?.success});
     if (!result?.success) throw new Error(result?.message || "Không đọc được danh sách.");
+    if (!result.data?.students?.length) throw new Error('Đã tìm thấy bảng nhưng không đọc được MSSV hợp lệ.');
     currentSessionData = result.data;
     scannedTabId = tab.id;
     $("val-course").value = result.data.course.courseCode;
@@ -77,7 +91,7 @@ async function scanPage() {
     }));
     for (const id of ["session-info", "btn-preview", "btn-send"]) $(id).classList.remove("hidden");
     status("Đã quét. Kiểm tra ngày, slot, phòng và giờ học trước khi gửi.", "success");
-  } catch (e) { status(e.message, "error"); }
+  } catch (e) { scanError = e.message; status(e.message, "error"); }
 }
 async function sendToDesktop() {
   if (!currentSessionData || busy) return;

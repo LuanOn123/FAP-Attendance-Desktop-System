@@ -1,7 +1,6 @@
 (function (root) {
   if (root.FapAttendanceWriter) return;
   const norm = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').toLowerCase().trim();
-  const codeHeaders = ['mssv', 'roll number', 'roll no', 'rollnumber', 'student id', 'student code', 'ma sinh vien', 'code'];
   function rowsByCode(doc) {
     const result = new Map();
     const add = (code, row) => {
@@ -10,17 +9,8 @@
       if (result.has(code)) throw new Error('MSSV trùng trên trang: ' + code);
       result.set(code, row);
     };
-    const cards = [...doc.querySelectorAll('.student-card')];
-    if (cards.length) {
-      for (const card of cards) add(card.querySelector('.student-code')?.textContent || '', card);
-    } else {
-      for (const table of doc.querySelectorAll('table')) {
-        const rows = [...table.querySelectorAll('tr')];
-        const index = rows.findIndex(row => [...row.children].some(cell => codeHeaders.includes(norm(cell.textContent))));
-        if (index < 0) continue;
-        const col = [...rows[index].children].findIndex(cell => codeHeaders.includes(norm(cell.textContent)));
-        for (const row of rows.slice(index + 1)) if (row.querySelector('td')) add(row.children[col]?.textContent || '', row);
-      }
+    for (const item of root.FapAttendanceScanner.studentRows(doc)) {
+      if (/^[A-Z]{2,6}\d{4,10}$/i.test(item.code.trim())) add(item.code, item.row);
     }
     return result;
   }
@@ -43,26 +33,37 @@
   function plan(doc, payload, scan) {
     if (!payload?.metadata || !Array.isArray(payload.entries) || !payload.entries.length || payload.entries.length > 1000) throw new Error('Dữ liệu nhập không hợp lệ.');
     const data = scan(doc), m = payload.metadata;
+    const selectedReport = payload.source === 'desktop' && payload.matchMode === 'selectedReport';
     for (const [label, actual, expected] of [
-      ['môn', data.course.courseCode, m.courseCode], ['lớp', data.class.classCode, m.classCode],
-      ['ngày', data.session.date, m.date], ['slot', data.session.slot, m.slot],
-    ]) if (!actual || String(actual).toUpperCase() !== String(expected).toUpperCase()) throw new Error(`Sai hoặc thiếu ${label} trên trang. Excel: ${expected}; trang: ${actual || 'chưa xác định'}.`);
-    if (payload.source === 'desktop') {
+      ...(payload.source === 'desktop' ? [] : [['môn', data.course.courseCode, m.courseCode]]), ['lớp', data.class.classCode, m.classCode],
+      ...(selectedReport ? [] : [['ngày', data.session.date, m.date], ['slot', data.session.slot, m.slot]]),
+    ]) if ((payload.source === 'desktop' && !actual) || (actual && String(actual).toUpperCase() !== String(expected).toUpperCase())) throw new Error(`Sai hoặc thiếu ${label} trên trang. Excel: ${expected}; trang: ${actual || 'chưa xác định'}.`);
+    if (payload.source === 'desktop' && !selectedReport) {
       for (const key of ['startTime', 'endTime']) {
         const time = value => { const match = String(value || '').match(/^(\d{1,2}):(\d{2})$/); return match && +match[1] < 24 && +match[2] < 60 ? +match[1] * 60 + +match[2] : null; };
         if (time(m[key]) === null || time(data.session[key]) !== time(m[key])) throw new Error('Giờ học trên trang không khớp báo cáo desktop.');
       }
     }
     const rows = rowsByCode(doc), seen = new Set();
+    const names = new Map(data.students.map(s => [s.studentCode.trim().toUpperCase(), s.fullName]));
+    const missing = payload.entries.filter(entry => !rows.has(entry.studentCode)).map(entry => entry.studentCode);
+    if (missing.length) throw new Error(`Khớp ${payload.entries.length - missing.length}/${payload.entries.length} sinh viên. Không tìm thấy MSSV trên trang: ${missing.join(', ')}. Kiểm tra phân trang/danh sách lớp.`);
     if (payload.source === 'desktop' && rows.size !== payload.entries.length) throw new Error('Danh sách sinh viên trên trang và app không trùng nhau.');
     for (const entry of payload.entries) {
       if (!/^[A-Z]{2,6}\d{4,10}$/.test(entry.studentCode) || !['present', 'absent'].includes(entry.status) || seen.has(entry.studentCode)) throw new Error('MSSV/trạng thái không hợp lệ hoặc bị trùng.');
       seen.add(entry.studentCode);
+      if (selectedReport) {
+        const normalizeName = value => String(value || '').normalize('NFC').toLocaleLowerCase('vi').replace(/\s+/g, ' ').trim();
+        if (!normalizeName(entry.fullName) || normalizeName(entry.fullName) !== normalizeName(names.get(entry.studentCode))) {
+          throw new Error('Họ tên không khớp báo cáo Desktop tại MSSV ' + entry.studentCode + '. Kiểm tra lại danh sách trước khi đồng bộ.');
+        }
+      }
       if (!rows.has(entry.studentCode)) throw new Error('Không tìm thấy MSSV trên trang: ' + entry.studentCode + '. Kiểm tra phân trang/danh sách lớp.');
       try { control(rows.get(entry.studentCode), entry.status); }
       catch (e) { throw new Error(entry.studentCode + ': ' + e.message); }
     }
-    return {matched: payload.entries.length, unchanged: rows.size - seen.size,
+    console.debug('[Attendance Mapper]', {page: rows.size, excel: payload.entries.length, matched: seen.size, missing: 0});
+    return {matched: payload.entries.length, pageStudents: rows.size, unchanged: rows.size - seen.size,
       present: payload.entries.filter(e => e.status === 'present').length,
       absent: payload.entries.filter(e => e.status === 'absent').length};
   }

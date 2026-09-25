@@ -1,48 +1,1044 @@
 <!doctype html>
-<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>FAP Lecturer • Attendance test</title><style>
-*{box-sizing:border-box}body{margin:0;background:#f4f6f8;color:#283443;font:14px Arial,sans-serif}header{background:white;border-bottom:4px solid #ee7421}.masthead{max-width:1240px;margin:auto;padding:24px;display:flex;justify-content:space-between;align-items:center}.logo{font-size:34px;font-weight:900;color:#ef7223;letter-spacing:-1px}.logo span{color:#176aaa}.masthead p{margin:5px 0;color:#7c8792;font-size:12px}.account{background:#edf4fa;padding:10px 16px;border-radius:5px;color:#36637c}nav{background:#17699f;color:white;padding:13px max(24px,calc((100vw - 1192px)/2));font-weight:bold}.test-banner{max-width:1192px;margin:20px auto 0;padding:12px 16px;background:#fff5de;border:1px solid #efdaa4;color:#805b18;line-height:1.6}main{max-width:1240px;margin:auto;padding:22px 24px 40px}.crumb{font-size:12px;color:#758899;margin-bottom:18px}h1{font-size:27px;font-weight:500;margin:0 0 8px}h1+ p{color:#778593;margin:0 0 22px}.session{background:white;border:1px solid #dce3e9;border-radius:6px;display:grid;grid-template-columns:repeat(4,1fr);padding:8px 20px;gap:0 20px;margin:20px 0}.session p{margin:12px 0}.session b{color:#758392;font-size:11px;text-transform:uppercase;display:block;margin-bottom:7px}.toolbar{display:flex;align-items:center;justify-content:space-between;margin:22px 0 12px;gap:12px;flex-wrap:wrap}.counts{display:flex;gap:12px}.count{border:1px solid #dce4eb;border-radius:5px;background:white;padding:10px 14px}.count strong{margin-right:7px;font-size:19px}.green{color:#237c53}.red{color:#b34b4b}button{cursor:pointer;border:1px solid #ccd5df;background:white;padding:10px 15px;border-radius:4px;color:#36637c;font-weight:bold}button:hover{background:#eaf1f7}button.primary{background:#2076ab;color:white;border-color:#2076ab}table{border-collapse:collapse;width:100%;background:white}th{background:#1973a9;color:white;text-align:left;font-size:12px;letter-spacing:.2px;padding:14px 12px}td{padding:10px 12px;border-bottom:1px solid #e3e9ee;vertical-align:middle}tbody tr:nth-child(even){background:#f7fafc}tbody tr:has(input[value="1"]:checked){background:#f0faf4}tbody tr:has(input[value="0"]:checked){background:#fff8f6}th:first-child{width:45px}.roll{font-weight:bold;color:#246b98;white-space:nowrap}.avatar{width:36px;height:42px;background:#e8eef3;color:#6f8799;border-radius:4px;display:grid;place-items:center;font-size:11px;font-weight:bold}label{display:inline-flex;align-items:center;gap:5px;margin-right:15px;cursor:pointer;font-size:13px}label small{color:#82909a;font-size:10px}input[type=radio]{width:16px;height:16px;accent-color:#198655}label.absent input{accent-color:#ca5e51}input.comment{border:1px solid #d7e0e7;border-radius:4px;padding:8px;width:150px}.table-wrap{overflow-x:auto;border:1px solid #d6e0e7;border-radius:5px}.footer{display:flex;justify-content:space-between;align-items:center;gap:20px;background:white;padding:18px;border:1px solid #dce3e9;margin-top:16px}.footer p{margin:4px 0;color:#778593;font-size:12px}#notice{white-space:pre-line;color:#276545;line-height:1.6}footer{text-align:center;font-size:12px;color:#86919d;padding:24px} @media(max-width:800px){.session{grid-template-columns:1fr 1fr}.masthead{gap:14px}.account{font-size:11px}main{padding:20px 12px}label small{display:none}table{min-width:900px}.footer{align-items:flex-start;flex-direction:column}}
-</style></head><body>
-<header><div class="masthead"><div><div class="logo">FPT <span>University</span></div><p>FAP • FPT University Academic Portal</p></div><div class="account">Lecturer workspace · SE1928</div></div></header>
-<nav>Academic Portal / Lecturer / Take Attendance</nav>
-<div class="test-banner"><strong>TRANG KIỂM THỬ CỤC BỘ</strong> — Mô phỏng bố cục FAP, không phải hệ thống FAP chính thức. Nút lưu chỉ hiển thị kết quả trên trang này.</div>
-<main><div class="crumb">Home › Teaching schedule › Take attendance</div><h1>Take Attendance</h1><p>Điểm danh sinh viên theo buổi học. Đối chiếu danh sách trước khi lưu.</p>
-<section class="session"><p><b>Subject</b><span>Subject: PRM393</span></p><p><b>Group</b><span>Group: SE1928</span></p><p><b>Date</b><span>Date: 22/09/2026</span></p><p><b>Slot</b><span>Slot: 4</span></p><p><b>Room</b><span>Room: NVH 602</span></p><p><b>Start</b><span>Start time: 15:00</span></p><p><b>End</b><span>End time: 17:15</span></p><p><b>Students</b><span>33 sinh viên</span></p></section>
-<div class="toolbar"><div class="counts"><div class="count"><strong id="pendingCount">33</strong>Chưa chọn</div><div class="count green"><strong id="presentCount">0</strong>Có mặt</div><div class="count red"><strong id="absentCount">0</strong>Vắng mặt</div></div><div><button id="reverse" type="button">Đảo thứ tự để test MSSV</button> <button id="reset" type="button">Xóa lựa chọn để test lại</button></div></div>
-<div class="table-wrap"><table id="ctl00_mainContent_gvStudents"><thead><tr><th>No.</th><th>Image</th><th>Roll Number</th><th>Full Name</th><th>Attendance status</th><th>Comment</th></tr></thead><tbody><tr data-student-code="SE160978"><td>1</td><td><div class="avatar">SE</div></td><td class="roll">SE160978</td><td>Nguyễn Anh Khoa</td><td><label class="absent"><input type="radio" name="ctl00$mainContent$gvStudents$ctl02$rblAttendance" id="absent_0" value="0"> Absent <small>Vắng mặt</small></label><label class="present"><input type="radio" name="ctl00$mainContent$gvStudents$ctl02$rblAttendance" id="present_0" value="1"> Present <small>Có mặt</small></label></td><td><input class="comment" aria-label="Ghi chú SE160978" placeholder="Ghi chú"></td></tr>
-<tr data-student-code="SE193911"><td>2</td><td><div class="avatar">SE</div></td><td class="roll">SE193911</td><td>Nguyễn Thắng</td><td><label class="absent"><input type="radio" name="ctl00$mainContent$gvStudents$ctl03$rblAttendance" id="absent_1" value="0"> Absent <small>Vắng mặt</small></label><label class="present"><input type="radio" name="ctl00$mainContent$gvStudents$ctl03$rblAttendance" id="present_1" value="1"> Present <small>Có mặt</small></label></td><td><input class="comment" aria-label="Ghi chú SE193911" placeholder="Ghi chú"></td></tr>
-<tr data-student-code="SE184164"><td>3</td><td><div class="avatar">SE</div></td><td class="roll">SE184164</td><td>Nguyễn Thu Thảo</td><td><label class="absent"><input type="radio" name="ctl00$mainContent$gvStudents$ctl04$rblAttendance" id="absent_2" value="0"> Absent <small>Vắng mặt</small></label><label class="present"><input type="radio" name="ctl00$mainContent$gvStudents$ctl04$rblAttendance" id="present_2" value="1"> Present <small>Có mặt</small></label></td><td><input class="comment" aria-label="Ghi chú SE184164" placeholder="Ghi chú"></td></tr>
-<tr data-student-code="SE184250"><td>4</td><td><div class="avatar">SE</div></td><td class="roll">SE184250</td><td>Hoàng Minh Vũ</td><td><label class="absent"><input type="radio" name="ctl00$mainContent$gvStudents$ctl05$rblAttendance" id="absent_3" value="0"> Absent <small>Vắng mặt</small></label><label class="present"><input type="radio" name="ctl00$mainContent$gvStudents$ctl05$rblAttendance" id="present_3" value="1"> Present <small>Có mặt</small></label></td><td><input class="comment" aria-label="Ghi chú SE184250" placeholder="Ghi chú"></td></tr>
-<tr data-student-code="SE192251"><td>5</td><td><div class="avatar">SE</div></td><td class="roll">SE192251</td><td>Lê Quang Hiếu</td><td><label class="absent"><input type="radio" name="ctl00$mainContent$gvStudents$ctl06$rblAttendance" id="absent_4" value="0"> Absent <small>Vắng mặt</small></label><label class="present"><input type="radio" name="ctl00$mainContent$gvStudents$ctl06$rblAttendance" id="present_4" value="1"> Present <small>Có mặt</small></label></td><td><input class="comment" aria-label="Ghi chú SE192251" placeholder="Ghi chú"></td></tr>
-<tr data-student-code="SE192523"><td>6</td><td><div class="avatar">SE</div></td><td class="roll">SE192523</td><td>Đặng Sông Hương</td><td><label class="absent"><input type="radio" name="ctl00$mainContent$gvStudents$ctl07$rblAttendance" id="absent_5" value="0"> Absent <small>Vắng mặt</small></label><label class="present"><input type="radio" name="ctl00$mainContent$gvStudents$ctl07$rblAttendance" id="present_5" value="1"> Present <small>Có mặt</small></label></td><td><input class="comment" aria-label="Ghi chú SE192523" placeholder="Ghi chú"></td></tr>
-<tr data-student-code="SE192250"><td>7</td><td><div class="avatar">SE</div></td><td class="roll">SE192250</td><td>Nguyễn Minh Khang</td><td><label class="absent"><input type="radio" name="ctl00$mainContent$gvStudents$ctl08$rblAttendance" id="absent_6" value="0"> Absent <small>Vắng mặt</small></label><label class="present"><input type="radio" name="ctl00$mainContent$gvStudents$ctl08$rblAttendance" id="present_6" value="1"> Present <small>Có mặt</small></label></td><td><input class="comment" aria-label="Ghi chú SE192250" placeholder="Ghi chú"></td></tr>
-<tr data-student-code="SE192410"><td>8</td><td><div class="avatar">SE</div></td><td class="roll">SE192410</td><td>Nguyễn Phúc Sanh</td><td><label class="absent"><input type="radio" name="ctl00$mainContent$gvStudents$ctl09$rblAttendance" id="absent_7" value="0"> Absent <small>Vắng mặt</small></label><label class="present"><input type="radio" name="ctl00$mainContent$gvStudents$ctl09$rblAttendance" id="present_7" value="1"> Present <small>Có mặt</small></label></td><td><input class="comment" aria-label="Ghi chú SE192410" placeholder="Ghi chú"></td></tr>
-<tr data-student-code="SE194606"><td>9</td><td><div class="avatar">SE</div></td><td class="roll">SE194606</td><td>Vũ Anh Khôi</td><td><label class="absent"><input type="radio" name="ctl00$mainContent$gvStudents$ctl10$rblAttendance" id="absent_8" value="0"> Absent <small>Vắng mặt</small></label><label class="present"><input type="radio" name="ctl00$mainContent$gvStudents$ctl10$rblAttendance" id="present_8" value="1"> Present <small>Có mặt</small></label></td><td><input class="comment" aria-label="Ghi chú SE194606" placeholder="Ghi chú"></td></tr>
-<tr data-student-code="SE182702"><td>10</td><td><div class="avatar">SE</div></td><td class="roll">SE182702</td><td>Lê Thành Lộc</td><td><label class="absent"><input type="radio" name="ctl00$mainContent$gvStudents$ctl11$rblAttendance" id="absent_9" value="0"> Absent <small>Vắng mặt</small></label><label class="present"><input type="radio" name="ctl00$mainContent$gvStudents$ctl11$rblAttendance" id="present_9" value="1"> Present <small>Có mặt</small></label></td><td><input class="comment" aria-label="Ghi chú SE182702" placeholder="Ghi chú"></td></tr>
-<tr data-student-code="SE190533"><td>11</td><td><div class="avatar">SE</div></td><td class="roll">SE190533</td><td>Trần Ngọc Thiên</td><td><label class="absent"><input type="radio" name="ctl00$mainContent$gvStudents$ctl12$rblAttendance" id="absent_10" value="0"> Absent <small>Vắng mặt</small></label><label class="present"><input type="radio" name="ctl00$mainContent$gvStudents$ctl12$rblAttendance" id="present_10" value="1"> Present <small>Có mặt</small></label></td><td><input class="comment" aria-label="Ghi chú SE190533" placeholder="Ghi chú"></td></tr>
-<tr data-student-code="SE190742"><td>12</td><td><div class="avatar">SE</div></td><td class="roll">SE190742</td><td>Vũ Huy Phương</td><td><label class="absent"><input type="radio" name="ctl00$mainContent$gvStudents$ctl13$rblAttendance" id="absent_11" value="0"> Absent <small>Vắng mặt</small></label><label class="present"><input type="radio" name="ctl00$mainContent$gvStudents$ctl13$rblAttendance" id="present_11" value="1"> Present <small>Có mặt</small></label></td><td><input class="comment" aria-label="Ghi chú SE190742" placeholder="Ghi chú"></td></tr>
-<tr data-student-code="SE194909"><td>13</td><td><div class="avatar">SE</div></td><td class="roll">SE194909</td><td>Lâm Thiên Hải Anh</td><td><label class="absent"><input type="radio" name="ctl00$mainContent$gvStudents$ctl14$rblAttendance" id="absent_12" value="0"> Absent <small>Vắng mặt</small></label><label class="present"><input type="radio" name="ctl00$mainContent$gvStudents$ctl14$rblAttendance" id="present_12" value="1"> Present <small>Có mặt</small></label></td><td><input class="comment" aria-label="Ghi chú SE194909" placeholder="Ghi chú"></td></tr>
-<tr data-student-code="SE194898"><td>14</td><td><div class="avatar">SE</div></td><td class="roll">SE194898</td><td>Dương Khôi Minh</td><td><label class="absent"><input type="radio" name="ctl00$mainContent$gvStudents$ctl15$rblAttendance" id="absent_13" value="0"> Absent <small>Vắng mặt</small></label><label class="present"><input type="radio" name="ctl00$mainContent$gvStudents$ctl15$rblAttendance" id="present_13" value="1"> Present <small>Có mặt</small></label></td><td><input class="comment" aria-label="Ghi chú SE194898" placeholder="Ghi chú"></td></tr>
-<tr data-student-code="SE182671"><td>15</td><td><div class="avatar">SE</div></td><td class="roll">SE182671</td><td>Nguyễn Phùng Anh Tuấn</td><td><label class="absent"><input type="radio" name="ctl00$mainContent$gvStudents$ctl16$rblAttendance" id="absent_14" value="0"> Absent <small>Vắng mặt</small></label><label class="present"><input type="radio" name="ctl00$mainContent$gvStudents$ctl16$rblAttendance" id="present_14" value="1"> Present <small>Có mặt</small></label></td><td><input class="comment" aria-label="Ghi chú SE182671" placeholder="Ghi chú"></td></tr>
-<tr data-student-code="SE184785"><td>16</td><td><div class="avatar">SE</div></td><td class="roll">SE184785</td><td>Nguyễn Xuân Việt</td><td><label class="absent"><input type="radio" name="ctl00$mainContent$gvStudents$ctl17$rblAttendance" id="absent_15" value="0"> Absent <small>Vắng mặt</small></label><label class="present"><input type="radio" name="ctl00$mainContent$gvStudents$ctl17$rblAttendance" id="present_15" value="1"> Present <small>Có mặt</small></label></td><td><input class="comment" aria-label="Ghi chú SE184785" placeholder="Ghi chú"></td></tr>
-<tr data-student-code="SE194918"><td>17</td><td><div class="avatar">SE</div></td><td class="roll">SE194918</td><td>Bùi Nguyễn Khải Vinh</td><td><label class="absent"><input type="radio" name="ctl00$mainContent$gvStudents$ctl18$rblAttendance" id="absent_16" value="0"> Absent <small>Vắng mặt</small></label><label class="present"><input type="radio" name="ctl00$mainContent$gvStudents$ctl18$rblAttendance" id="present_16" value="1"> Present <small>Có mặt</small></label></td><td><input class="comment" aria-label="Ghi chú SE194918" placeholder="Ghi chú"></td></tr>
-<tr data-student-code="SE182656"><td>18</td><td><div class="avatar">SE</div></td><td class="roll">SE182656</td><td>Nguyễn Tiến Đạt</td><td><label class="absent"><input type="radio" name="ctl00$mainContent$gvStudents$ctl19$rblAttendance" id="absent_17" value="0"> Absent <small>Vắng mặt</small></label><label class="present"><input type="radio" name="ctl00$mainContent$gvStudents$ctl19$rblAttendance" id="present_17" value="1"> Present <small>Có mặt</small></label></td><td><input class="comment" aria-label="Ghi chú SE182656" placeholder="Ghi chú"></td></tr>
-<tr data-student-code="SE184612"><td>19</td><td><div class="avatar">SE</div></td><td class="roll">SE184612</td><td>Lại Anh Đức</td><td><label class="absent"><input type="radio" name="ctl00$mainContent$gvStudents$ctl20$rblAttendance" id="absent_18" value="0"> Absent <small>Vắng mặt</small></label><label class="present"><input type="radio" name="ctl00$mainContent$gvStudents$ctl20$rblAttendance" id="present_18" value="1"> Present <small>Có mặt</small></label></td><td><input class="comment" aria-label="Ghi chú SE184612" placeholder="Ghi chú"></td></tr>
-<tr data-student-code="SE170487"><td>20</td><td><div class="avatar">SE</div></td><td class="roll">SE170487</td><td>Phan Trọng Tiến</td><td><label class="absent"><input type="radio" name="ctl00$mainContent$gvStudents$ctl21$rblAttendance" id="absent_19" value="0"> Absent <small>Vắng mặt</small></label><label class="present"><input type="radio" name="ctl00$mainContent$gvStudents$ctl21$rblAttendance" id="present_19" value="1"> Present <small>Có mặt</small></label></td><td><input class="comment" aria-label="Ghi chú SE170487" placeholder="Ghi chú"></td></tr>
-<tr data-student-code="SE180787"><td>21</td><td><div class="avatar">SE</div></td><td class="roll">SE180787</td><td>Lâm Quốc Cường</td><td><label class="absent"><input type="radio" name="ctl00$mainContent$gvStudents$ctl22$rblAttendance" id="absent_20" value="0"> Absent <small>Vắng mặt</small></label><label class="present"><input type="radio" name="ctl00$mainContent$gvStudents$ctl22$rblAttendance" id="present_20" value="1"> Present <small>Có mặt</small></label></td><td><input class="comment" aria-label="Ghi chú SE180787" placeholder="Ghi chú"></td></tr>
-<tr data-student-code="SE171772"><td>22</td><td><div class="avatar">SE</div></td><td class="roll">SE171772</td><td>Phạm Tiến Đạt</td><td><label class="absent"><input type="radio" name="ctl00$mainContent$gvStudents$ctl23$rblAttendance" id="absent_21" value="0"> Absent <small>Vắng mặt</small></label><label class="present"><input type="radio" name="ctl00$mainContent$gvStudents$ctl23$rblAttendance" id="present_21" value="1"> Present <small>Có mặt</small></label></td><td><input class="comment" aria-label="Ghi chú SE171772" placeholder="Ghi chú"></td></tr>
-<tr data-student-code="SE192083"><td>23</td><td><div class="avatar">SE</div></td><td class="roll">SE192083</td><td>Đoàn Đức Duy</td><td><label class="absent"><input type="radio" name="ctl00$mainContent$gvStudents$ctl24$rblAttendance" id="absent_22" value="0"> Absent <small>Vắng mặt</small></label><label class="present"><input type="radio" name="ctl00$mainContent$gvStudents$ctl24$rblAttendance" id="present_22" value="1"> Present <small>Có mặt</small></label></td><td><input class="comment" aria-label="Ghi chú SE192083" placeholder="Ghi chú"></td></tr>
-<tr data-student-code="SE180776"><td>24</td><td><div class="avatar">SE</div></td><td class="roll">SE180776</td><td>Nguyễn Tấn Khang</td><td><label class="absent"><input type="radio" name="ctl00$mainContent$gvStudents$ctl25$rblAttendance" id="absent_23" value="0"> Absent <small>Vắng mặt</small></label><label class="present"><input type="radio" name="ctl00$mainContent$gvStudents$ctl25$rblAttendance" id="present_23" value="1"> Present <small>Có mặt</small></label></td><td><input class="comment" aria-label="Ghi chú SE180776" placeholder="Ghi chú"></td></tr>
-<tr data-student-code="SE196654"><td>25</td><td><div class="avatar">SE</div></td><td class="roll">SE196654</td><td>Nguyễn Đình Ngọc Ân</td><td><label class="absent"><input type="radio" name="ctl00$mainContent$gvStudents$ctl26$rblAttendance" id="absent_24" value="0"> Absent <small>Vắng mặt</small></label><label class="present"><input type="radio" name="ctl00$mainContent$gvStudents$ctl26$rblAttendance" id="present_24" value="1"> Present <small>Có mặt</small></label></td><td><input class="comment" aria-label="Ghi chú SE196654" placeholder="Ghi chú"></td></tr>
-<tr data-student-code="SE194103"><td>26</td><td><div class="avatar">SE</div></td><td class="roll">SE194103</td><td>Đào Tâm Hoàng</td><td><label class="absent"><input type="radio" name="ctl00$mainContent$gvStudents$ctl27$rblAttendance" id="absent_25" value="0"> Absent <small>Vắng mặt</small></label><label class="present"><input type="radio" name="ctl00$mainContent$gvStudents$ctl27$rblAttendance" id="present_25" value="1"> Present <small>Có mặt</small></label></td><td><input class="comment" aria-label="Ghi chú SE194103" placeholder="Ghi chú"></td></tr>
-<tr data-student-code="SE192248"><td>27</td><td><div class="avatar">SE</div></td><td class="roll">SE192248</td><td>Hồ Hữu Hoàng Huân</td><td><label class="absent"><input type="radio" name="ctl00$mainContent$gvStudents$ctl28$rblAttendance" id="absent_26" value="0"> Absent <small>Vắng mặt</small></label><label class="present"><input type="radio" name="ctl00$mainContent$gvStudents$ctl28$rblAttendance" id="present_26" value="1"> Present <small>Có mặt</small></label></td><td><input class="comment" aria-label="Ghi chú SE192248" placeholder="Ghi chú"></td></tr>
-<tr data-student-code="SE193040"><td>28</td><td><div class="avatar">SE</div></td><td class="roll">SE193040</td><td>Huỳnh Đăng Khoa</td><td><label class="absent"><input type="radio" name="ctl00$mainContent$gvStudents$ctl29$rblAttendance" id="absent_27" value="0"> Absent <small>Vắng mặt</small></label><label class="present"><input type="radio" name="ctl00$mainContent$gvStudents$ctl29$rblAttendance" id="present_27" value="1"> Present <small>Có mặt</small></label></td><td><input class="comment" aria-label="Ghi chú SE193040" placeholder="Ghi chú"></td></tr>
-<tr data-student-code="SE183268"><td>29</td><td><div class="avatar">SE</div></td><td class="roll">SE183268</td><td>Ngô Gia Kiệt</td><td><label class="absent"><input type="radio" name="ctl00$mainContent$gvStudents$ctl30$rblAttendance" id="absent_28" value="0"> Absent <small>Vắng mặt</small></label><label class="present"><input type="radio" name="ctl00$mainContent$gvStudents$ctl30$rblAttendance" id="present_28" value="1"> Present <small>Có mặt</small></label></td><td><input class="comment" aria-label="Ghi chú SE183268" placeholder="Ghi chú"></td></tr>
-<tr data-student-code="SE180029"><td>30</td><td><div class="avatar">SE</div></td><td class="roll">SE180029</td><td>Nguyễn Vũ Đức Phương</td><td><label class="absent"><input type="radio" name="ctl00$mainContent$gvStudents$ctl31$rblAttendance" id="absent_29" value="0"> Absent <small>Vắng mặt</small></label><label class="present"><input type="radio" name="ctl00$mainContent$gvStudents$ctl31$rblAttendance" id="present_29" value="1"> Present <small>Có mặt</small></label></td><td><input class="comment" aria-label="Ghi chú SE180029" placeholder="Ghi chú"></td></tr>
-<tr data-student-code="SE171835"><td>31</td><td><div class="avatar">SE</div></td><td class="roll">SE171835</td><td>Bùi Lê Huy Hoàng</td><td><label class="absent"><input type="radio" name="ctl00$mainContent$gvStudents$ctl32$rblAttendance" id="absent_30" value="0"> Absent <small>Vắng mặt</small></label><label class="present"><input type="radio" name="ctl00$mainContent$gvStudents$ctl32$rblAttendance" id="present_30" value="1"> Present <small>Có mặt</small></label></td><td><input class="comment" aria-label="Ghi chú SE171835" placeholder="Ghi chú"></td></tr>
-<tr data-student-code="SE180372"><td>32</td><td><div class="avatar">SE</div></td><td class="roll">SE180372</td><td>Nguyễn Hòa Anh Kiệt</td><td><label class="absent"><input type="radio" name="ctl00$mainContent$gvStudents$ctl33$rblAttendance" id="absent_31" value="0"> Absent <small>Vắng mặt</small></label><label class="present"><input type="radio" name="ctl00$mainContent$gvStudents$ctl33$rblAttendance" id="present_31" value="1"> Present <small>Có mặt</small></label></td><td><input class="comment" aria-label="Ghi chú SE180372" placeholder="Ghi chú"></td></tr>
-<tr data-student-code="SE181869"><td>33</td><td><div class="avatar">SE</div></td><td class="roll">SE181869</td><td>Trương Kiến Minh</td><td><label class="absent"><input type="radio" name="ctl00$mainContent$gvStudents$ctl34$rblAttendance" id="absent_32" value="0"> Absent <small>Vắng mặt</small></label><label class="present"><input type="radio" name="ctl00$mainContent$gvStudents$ctl34$rblAttendance" id="present_32" value="1"> Present <small>Có mặt</small></label></td><td><input class="comment" aria-label="Ghi chú SE181869" placeholder="Ghi chú"></td></tr></tbody></table></div>
-<div class="footer"><div><strong>Kiểm tra → Lưu điểm danh</strong><p>Mở extension → chọn Excel → Bắt đầu tự điểm danh.</p><p>Danh sách kiểm thử hiện tại: 33 sinh viên lớp SE1928.</p></div><button id="save" type="button" class="primary">Save attendance / Lưu thử</button></div><p id="notice" role="status" aria-live="polite"></p>
-</main><footer>FAP Attendance Desktop System · Local integration test</footer>
-<script>
-const table=document.querySelector('tbody');function update(){const present=table.querySelectorAll('input[value="1"]:checked').length,absent=table.querySelectorAll('input[value="0"]:checked').length;document.getElementById('presentCount').textContent=present;document.getElementById('absentCount').textContent=absent;document.getElementById('pendingCount').textContent=33-present-absent;}table.addEventListener('change',update);document.getElementById('reverse').onclick=()=>table.replaceChildren(...[...table.children].reverse());document.getElementById('reset').onclick=()=>{table.querySelectorAll('input[type=radio]').forEach(i=>i.checked=false);document.getElementById('notice').textContent='';update()};document.getElementById('save').onclick=()=>{const pending=Number(document.getElementById('pendingCount').textContent);document.getElementById('notice').textContent=pending?'Còn '+pending+' sinh viên chưa chọn trạng thái.':'Đã lưu thử trên trang: '+document.getElementById('presentCount').textContent+' Có mặt, '+document.getElementById('absentCount').textContent+' Vắng mặt. Không gửi dữ liệu tới FAP.'};
-</script></body></html>
+<html lang="vi">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>FAP Lecturer • Attendance test • SE1922</title>
+    <style>
+        * {
+            box-sizing: border-box
+        }
+
+        body {
+            margin: 0;
+            background: #f4f6f8;
+            color: #283443;
+            font: 14px Arial, sans-serif
+        }
+
+        header {
+            background: white;
+            border-bottom: 4px solid #ee7421
+        }
+
+        .masthead {
+            max-width: 1240px;
+            margin: auto;
+            padding: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center
+        }
+
+        .logo {
+            font-size: 34px;
+            font-weight: 900;
+            color: #ef7223;
+            letter-spacing: -1px
+        }
+
+        .logo span {
+            color: #176aaa
+        }
+
+        .masthead p {
+            margin: 5px 0;
+            color: #7c8792;
+            font-size: 12px
+        }
+
+        .account {
+            background: #edf4fa;
+            padding: 10px 16px;
+            border-radius: 5px;
+            color: #36637c
+        }
+
+        nav {
+            background: #17699f;
+            color: white;
+            padding: 13px max(24px, calc((100vw - 1192px)/2));
+            font-weight: bold
+        }
+
+        .test-banner {
+            max-width: 1192px;
+            margin: 20px auto 0;
+            padding: 12px 16px;
+            background: #fff5de;
+            border: 1px solid #efdaa4;
+            color: #805b18;
+            line-height: 1.6
+        }
+
+        main {
+            max-width: 1240px;
+            margin: auto;
+            padding: 22px 24px 40px
+        }
+
+        .crumb {
+            font-size: 12px;
+            color: #758899;
+            margin-bottom: 18px
+        }
+
+        h1 {
+            font-size: 27px;
+            font-weight: 500;
+            margin: 0 0 8px
+        }
+
+        h1+p {
+            color: #778593;
+            margin: 0 0 22px
+        }
+
+        .session {
+            background: white;
+            border: 1px solid #dce3e9;
+            border-radius: 6px;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            padding: 8px 20px;
+            gap: 0 20px;
+            margin: 20px 0
+        }
+
+        .session p {
+            margin: 12px 0
+        }
+
+        .session b {
+            color: #758392;
+            font-size: 11px;
+            text-transform: uppercase;
+            display: block;
+            margin-bottom: 7px
+        }
+
+        .toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin: 22px 0 12px;
+            gap: 12px;
+            flex-wrap: wrap
+        }
+
+        .counts {
+            display: flex;
+            gap: 12px
+        }
+
+        .count {
+            border: 1px solid #dce4eb;
+            border-radius: 5px;
+            background: white;
+            padding: 10px 14px
+        }
+
+        .count strong {
+            margin-right: 7px;
+            font-size: 19px
+        }
+
+        .green {
+            color: #237c53
+        }
+
+        .red {
+            color: #b34b4b
+        }
+
+        button {
+            cursor: pointer;
+            border: 1px solid #ccd5df;
+            background: white;
+            padding: 10px 15px;
+            border-radius: 4px;
+            color: #36637c;
+            font-weight: bold
+        }
+
+        button:hover {
+            background: #eaf1f7
+        }
+
+        button.primary {
+            background: #2076ab;
+            color: white;
+            border-color: #2076ab
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            background: white
+        }
+
+        th {
+            background: #1973a9;
+            color: white;
+            text-align: left;
+            font-size: 12px;
+            letter-spacing: .2px;
+            padding: 14px 12px
+        }
+
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #e3e9ee;
+            vertical-align: middle
+        }
+
+        tbody tr:nth-child(even) {
+            background: #f7fafc
+        }
+
+        tbody tr:has(input[value="1"]:checked) {
+            background: #f0faf4
+        }
+
+        tbody tr:has(input[value="0"]:checked) {
+            background: #fff8f6
+        }
+
+        th:first-child {
+            width: 45px
+        }
+
+        .roll {
+            font-weight: bold;
+            color: #246b98;
+            white-space: nowrap
+        }
+
+        .avatar {
+            width: 36px;
+            height: 42px;
+            background: #e8eef3;
+            color: #6f8799;
+            border-radius: 4px;
+            display: grid;
+            place-items: center;
+            font-size: 11px;
+            font-weight: bold
+        }
+
+        label {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            margin-right: 15px;
+            cursor: pointer;
+            font-size: 13px
+        }
+
+        label small {
+            color: #82909a;
+            font-size: 10px
+        }
+
+        input[type=radio] {
+            width: 16px;
+            height: 16px;
+            accent-color: #198655
+        }
+
+        label.absent input {
+            accent-color: #ca5e51
+        }
+
+        input.comment {
+            border: 1px solid #d7e0e7;
+            border-radius: 4px;
+            padding: 8px;
+            width: 150px
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+            border: 1px solid #d6e0e7;
+            border-radius: 5px
+        }
+
+        .footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
+            background: white;
+            padding: 18px;
+            border: 1px solid #dce3e9;
+            margin-top: 16px
+        }
+
+        .footer p {
+            margin: 4px 0;
+            color: #778593;
+            font-size: 12px
+        }
+
+        #notice {
+            white-space: pre-line;
+            color: #276545;
+            line-height: 1.6
+        }
+
+        footer {
+            text-align: center;
+            font-size: 12px;
+            color: #86919d;
+            padding: 24px
+        }
+
+        @media(max-width:800px) {
+            .session {
+                grid-template-columns: 1fr 1fr
+            }
+
+            .masthead {
+                gap: 14px
+            }
+
+            .account {
+                font-size: 11px
+            }
+
+            main {
+                padding: 20px 12px
+            }
+
+            label small {
+                display: none
+            }
+
+            table {
+                min-width: 900px
+            }
+
+            .footer {
+                align-items: flex-start;
+                flex-direction: column
+            }
+        }
+
+        table {
+            min-width: 1500px
+        }
+
+        .email,
+        .rollname,
+        .topic {
+            white-space: nowrap
+        }
+
+        .topic {
+            max-width: 260px;
+            white-space: normal
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <div class="masthead">
+            <div>
+                <div class="logo">FPT <span>University</span></div>
+                <p>FAP • FPT University Academic Portal</p>
+            </div>
+            <div class="account">Lecturer workspace · SE1922</div>
+        </div>
+    </header>
+    <nav>Academic Portal / Lecturer / Take Attendance</nav>
+    <div class="test-banner"><strong>TRANG KIỂM THỬ CỤC BỘ</strong> — Mô phỏng bố cục FAP, không phải hệ thống FAP chính
+        thức. Nút lưu chỉ hiển thị kết quả trên trang này.</div>
+    <main>
+        <div class="crumb">Home › Teaching schedule › Take attendance</div>
+        <h1>Take Attendance</h1>
+        <p>Điểm danh sinh viên theo buổi học. Dữ liệu kiểm thử lớp SE1922.</p>
+        <section class="session">
+            <p><b>Subject</b><span>Subject: PRM393</span></p>
+            <p><b>Group</b><span>Group: SE1922</span></p>
+            <p><b>Date</b><span>Date: 25/09/2026</span></p>
+            <p><b>Slot</b><span>Slot: 3</span></p>
+            <p><b>Room</b><span>Room: NVH 602</span></p>
+            <p><b>Start</b><span>Start time: 12:50</span></p>
+            <p><b>End</b><span>End time: 15:10</span></p>
+            <p><b>Students</b><span>35 sinh viên</span></p>
+        </section>
+        <div class="toolbar">
+            <div class="counts">
+                <div class="count"><strong id="pendingCount">0</strong>Chưa chọn</div>
+                <div class="count green"><strong id="presentCount">0</strong>Có mặt</div>
+                <div class="count red"><strong id="absentCount">0</strong>Vắng mặt</div>
+            </div>
+            <div><button id="reverse" type="button">Đảo thứ tự để test MSSV</button> <button id="reset"
+                    type="button">Xóa lựa chọn để test lại</button></div>
+        </div>
+        <div class="table-wrap">
+            <table id="ctl00_mainContent_gvStudents">
+                <thead>
+                    <tr>
+                        <th>No.</th>
+                        <th>Image</th>
+                        <th>Member Code / Roll Number</th>
+                        <th>Email</th>
+                        <th>Roll Name</th>
+                        <th>Full Name</th>
+                        <th>Group</th>
+                        <th>Topic</th>
+                        <th>Attendance status</th>
+                        <th>Comment</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr data-student-code="SE182699" data-email="DuyNNSE182699@fpt.edu.vn"
+                        data-roll-name="DuyNNSE182699" data-group="1" data-topic="Attendance">
+                        <td>1</td>
+                        <td>
+                            <div class="avatar">ND</div>
+                        </td>
+                        <td class="roll">SE182699</td>
+                        <td class="email">DuyNNSE182699@fpt.edu.vn</td>
+                        <td class="rollname">DuyNNSE182699</td>
+                        <td>Nguyễn Ngọc Duy</td>
+                        <td>1</td>
+                        <td class="topic">Attendance</td>
+                        <td><label class="absent"><input type="radio" name="student_0" id="absent_0" value="0"> Absent
+                                <small>Vắng mặt</small></label><label class="present"><input type="radio"
+                                    name="student_0" id="present_0" value="1"> Present <small>Có mặt</small></label>
+                        </td>
+                        <td><input class="comment" aria-label="Ghi chú SE182699" placeholder="Ghi chú"></td>
+                    </tr>
+                    <tr data-student-code="SE184297" data-email="LuanOTSE184297@fpt.edu.vn"
+                        data-roll-name="LuanOTSE184297" data-group="1" data-topic="">
+                        <td>2</td>
+                        <td>
+                            <div class="avatar">TL</div>
+                        </td>
+                        <td class="roll">SE184297</td>
+                        <td class="email">LuanOTSE184297@fpt.edu.vn</td>
+                        <td class="rollname">LuanOTSE184297</td>
+                        <td>Ôn Triệu Luân</td>
+                        <td>1</td>
+                        <td class="topic">—</td>
+                        <td><label class="absent"><input type="radio" name="student_1" id="absent_1" value="0"> Absent
+                                <small>Vắng mặt</small></label><label class="present"><input type="radio"
+                                    name="student_1" id="present_1" value="1" checked> Present <small>Có
+                                    mặt</small></label></td>
+                        <td><input class="comment" aria-label="Ghi chú SE184297" placeholder="Ghi chú"></td>
+                    </tr>
+                    <tr data-student-code="SE183277" data-email="PhucNTSE183277@fpt.edu.vn"
+                        data-roll-name="PhucNTSE183277" data-group="1" data-topic="">
+                        <td>3</td>
+                        <td>
+                            <div class="avatar">TP</div>
+                        </td>
+                        <td class="roll">SE183277</td>
+                        <td class="email">PhucNTSE183277@fpt.edu.vn</td>
+                        <td class="rollname">PhucNTSE183277</td>
+                        <td>Nguyễn Trường Phúc</td>
+                        <td>1</td>
+                        <td class="topic">—</td>
+                        <td><label class="absent"><input type="radio" name="student_2" id="absent_2" value="0" checked>
+                                Absent <small>Vắng mặt</small></label><label class="present"><input type="radio"
+                                    name="student_2" id="present_2" value="1"> Present <small>Có mặt</small></label>
+                        </td>
+                        <td><input class="comment" aria-label="Ghi chú SE183277" placeholder="Ghi chú"></td>
+                    </tr>
+                    <tr data-student-code="SE181848" data-email="ToanNVSE181848@fpt.edu.vn"
+                        data-roll-name="ToanNVSE181848" data-group="1" data-topic="">
+                        <td>4</td>
+                        <td>
+                            <div class="avatar">VT</div>
+                        </td>
+                        <td class="roll">SE181848</td>
+                        <td class="email">ToanNVSE181848@fpt.edu.vn</td>
+                        <td class="rollname">ToanNVSE181848</td>
+                        <td>Nguyễn Văn Toàn</td>
+                        <td>1</td>
+                        <td class="topic">—</td>
+                        <td><label class="absent"><input type="radio" name="student_3" id="absent_3" value="0"> Absent
+                                <small>Vắng mặt</small></label><label class="present"><input type="radio"
+                                    name="student_3" id="present_3" value="1"> Present <small>Có mặt</small></label>
+                        </td>
+                        <td><input class="comment" aria-label="Ghi chú SE181848" placeholder="Ghi chú"></td>
+                    </tr>
+                    <tr data-student-code="SE180065" data-email="DucLTMSE180065@fpt.edu.vn"
+                        data-roll-name="DucLTMSE180065" data-group="2" data-topic="Requirments">
+                        <td>5</td>
+                        <td>
+                            <div class="avatar">MĐ</div>
+                        </td>
+                        <td class="roll">SE180065</td>
+                        <td class="email">DucLTMSE180065@fpt.edu.vn</td>
+                        <td class="rollname">DucLTMSE180065</td>
+                        <td>Lê Trần Minh Đức</td>
+                        <td>2</td>
+                        <td class="topic">Requirments</td>
+                        <td><label class="absent"><input type="radio" name="student_4" id="absent_4" value="0"> Absent
+                                <small>Vắng mặt</small></label><label class="present"><input type="radio"
+                                    name="student_4" id="present_4" value="1"> Present <small>Có mặt</small></label>
+                        </td>
+                        <td><input class="comment" aria-label="Ghi chú SE180065" placeholder="Ghi chú"></td>
+                    </tr>
+                    <tr data-student-code="SE161147" data-email="DuyVNSE161147@fpt.edu.vn"
+                        data-roll-name="duyvnse161147" data-group="2" data-topic="">
+                        <td>6</td>
+                        <td>
+                            <div class="avatar">ND</div>
+                        </td>
+                        <td class="roll">SE161147</td>
+                        <td class="email">DuyVNSE161147@fpt.edu.vn</td>
+                        <td class="rollname">duyvnse161147</td>
+                        <td>Võ Ngọc Duy</td>
+                        <td>2</td>
+                        <td class="topic">—</td>
+                        <td><label class="absent"><input type="radio" name="student_5" id="absent_5" value="0"> Absent
+                                <small>Vắng mặt</small></label><label class="present"><input type="radio"
+                                    name="student_5" id="present_5" value="1"> Present <small>Có mặt</small></label>
+                        </td>
+                        <td><input class="comment" aria-label="Ghi chú SE161147" placeholder="Ghi chú"></td>
+                    </tr>
+                    <tr data-student-code="SE190247" data-email="noodle.professor@gmail.com"
+                        data-roll-name="KhoaTTLSE190247" data-group="2" data-topic="">
+                        <td>7</td>
+                        <td>
+                            <div class="avatar">LK</div>
+                        </td>
+                        <td class="roll">SE190247</td>
+                        <td class="email">noodle.professor@gmail.com</td>
+                        <td class="rollname">KhoaTTLSE190247</td>
+                        <td>Tống Trần Lê Khoa</td>
+                        <td>2</td>
+                        <td class="topic">—</td>
+                        <td><label class="absent"><input type="radio" name="student_6" id="absent_6" value="0"> Absent
+                                <small>Vắng mặt</small></label><label class="present"><input type="radio"
+                                    name="student_6" id="present_6" value="1"> Present <small>Có mặt</small></label>
+                        </td>
+                        <td><input class="comment" aria-label="Ghi chú SE190247" placeholder="Ghi chú"></td>
+                    </tr>
+                    <tr data-student-code="SE180584" data-email="KhoiNASE180584@fpt.edu.vn"
+                        data-roll-name="KhoiNASE180584" data-group="2" data-topic="">
+                        <td>8</td>
+                        <td>
+                            <div class="avatar">AK</div>
+                        </td>
+                        <td class="roll">SE180584</td>
+                        <td class="email">KhoiNASE180584@fpt.edu.vn</td>
+                        <td class="rollname">KhoiNASE180584</td>
+                        <td>Nguyễn Anh Khôi</td>
+                        <td>2</td>
+                        <td class="topic">—</td>
+                        <td><label class="absent"><input type="radio" name="student_7" id="absent_7" value="0"> Absent
+                                <small>Vắng mặt</small></label><label class="present"><input type="radio"
+                                    name="student_7" id="present_7" value="1"> Present <small>Có mặt</small></label>
+                        </td>
+                        <td><input class="comment" aria-label="Ghi chú SE180584" placeholder="Ghi chú"></td>
+                    </tr>
+                    <tr data-student-code="SE184800" data-email="TriNNMSE184800@fpt.edu.vn"
+                        data-roll-name="TriNNMSE184800" data-group="2" data-topic="">
+                        <td>9</td>
+                        <td>
+                            <div class="avatar">MT</div>
+                        </td>
+                        <td class="roll">SE184800</td>
+                        <td class="email">TriNNMSE184800@fpt.edu.vn</td>
+                        <td class="rollname">TriNNMSE184800</td>
+                        <td>Nguyễn Nam Minh Trí</td>
+                        <td>2</td>
+                        <td class="topic">—</td>
+                        <td><label class="absent"><input type="radio" name="student_8" id="absent_8" value="0"> Absent
+                                <small>Vắng mặt</small></label><label class="present"><input type="radio"
+                                    name="student_8" id="present_8" value="1"> Present <small>Có mặt</small></label>
+                        </td>
+                        <td><input class="comment" aria-label="Ghi chú SE184800" placeholder="Ghi chú"></td>
+                    </tr>
+                    <tr data-student-code="SE193656" data-email="pnhoanganhh@gmail.com" data-roll-name="AnhPNHSE193656"
+                        data-group="3" data-topic="Paper Citation">
+                        <td>10</td>
+                        <td>
+                            <div class="avatar">HA</div>
+                        </td>
+                        <td class="roll">SE193656</td>
+                        <td class="email">pnhoanganhh@gmail.com</td>
+                        <td class="rollname">AnhPNHSE193656</td>
+                        <td>Phạm Nguyễn Hoàng Anh</td>
+                        <td>3</td>
+                        <td class="topic">Paper Citation</td>
+                        <td><label class="absent"><input type="radio" name="student_9" id="absent_9" value="0"> Absent
+                                <small>Vắng mặt</small></label><label class="present"><input type="radio"
+                                    name="student_9" id="present_9" value="1"> Present <small>Có mặt</small></label>
+                        </td>
+                        <td><input class="comment" aria-label="Ghi chú SE193656" placeholder="Ghi chú"></td>
+                    </tr>
+                    <tr data-student-code="SE193938" data-email="kimhao25052005@gmail.com"
+                        data-roll-name="HaoNTKSE193938" data-group="3" data-topic="">
+                        <td>11</td>
+                        <td>
+                            <div class="avatar">KH</div>
+                        </td>
+                        <td class="roll">SE193938</td>
+                        <td class="email">kimhao25052005@gmail.com</td>
+                        <td class="rollname">HaoNTKSE193938</td>
+                        <td>Nguyễn Tấn Kim Hảo</td>
+                        <td>3</td>
+                        <td class="topic">—</td>
+                        <td><label class="absent"><input type="radio" name="student_10" id="absent_10" value="0"> Absent
+                                <small>Vắng mặt</small></label><label class="present"><input type="radio"
+                                    name="student_10" id="present_10" value="1"> Present <small>Có mặt</small></label>
+                        </td>
+                        <td><input class="comment" aria-label="Ghi chú SE193938" placeholder="Ghi chú"></td>
+                    </tr>
+                    <tr data-student-code="SE193778" data-email="nekor210@gmail.com" data-roll-name="LapMDSE193778"
+                        data-group="3" data-topic="">
+                        <td>12</td>
+                        <td>
+                            <div class="avatar">DL</div>
+                        </td>
+                        <td class="roll">SE193778</td>
+                        <td class="email">nekor210@gmail.com</td>
+                        <td class="rollname">LapMDSE193778</td>
+                        <td>Mai Duy Lập</td>
+                        <td>3</td>
+                        <td class="topic">—</td>
+                        <td><label class="absent"><input type="radio" name="student_11" id="absent_11" value="0"> Absent
+                                <small>Vắng mặt</small></label><label class="present"><input type="radio"
+                                    name="student_11" id="present_11" value="1"> Present <small>Có mặt</small></label>
+                        </td>
+                        <td><input class="comment" aria-label="Ghi chú SE193778" placeholder="Ghi chú"></td>
+                    </tr>
+                    <tr data-student-code="SE193679" data-email="lamtailoi11141@gmail.com"
+                        data-roll-name="LoiLTSE193679" data-group="3" data-topic="">
+                        <td>13</td>
+                        <td>
+                            <div class="avatar">TL</div>
+                        </td>
+                        <td class="roll">SE193679</td>
+                        <td class="email">lamtailoi11141@gmail.com</td>
+                        <td class="rollname">LoiLTSE193679</td>
+                        <td>Lâm Tài Lợi</td>
+                        <td>3</td>
+                        <td class="topic">—</td>
+                        <td><label class="absent"><input type="radio" name="student_12" id="absent_12" value="0"> Absent
+                                <small>Vắng mặt</small></label><label class="present"><input type="radio"
+                                    name="student_12" id="present_12" value="1"> Present <small>Có mặt</small></label>
+                        </td>
+                        <td><input class="comment" aria-label="Ghi chú SE193679" placeholder="Ghi chú"></td>
+                    </tr>
+                    <tr data-student-code="SE193851" data-email="tunguyen04105@gmail.com" data-roll-name="TuNMSE193851"
+                        data-group="3" data-topic="">
+                        <td>14</td>
+                        <td>
+                            <div class="avatar">MT</div>
+                        </td>
+                        <td class="roll">SE193851</td>
+                        <td class="email">tunguyen04105@gmail.com</td>
+                        <td class="rollname">TuNMSE193851</td>
+                        <td>Nguyễn Minh Tú</td>
+                        <td>3</td>
+                        <td class="topic">—</td>
+                        <td><label class="absent"><input type="radio" name="student_13" id="absent_13" value="0"> Absent
+                                <small>Vắng mặt</small></label><label class="present"><input type="radio"
+                                    name="student_13" id="present_13" value="1"> Present <small>Có mặt</small></label>
+                        </td>
+                        <td><input class="comment" aria-label="Ghi chú SE193851" placeholder="Ghi chú"></td>
+                    </tr>
+                    <tr data-student-code="SE180504" data-email="HieuNTSE180504@fpt.edu.vn"
+                        data-roll-name="HieuNTSE180504" data-group="4" data-topic="">
+                        <td>15</td>
+                        <td>
+                            <div class="avatar">TH</div>
+                        </td>
+                        <td class="roll">SE180504</td>
+                        <td class="email">HieuNTSE180504@fpt.edu.vn</td>
+                        <td class="rollname">HieuNTSE180504</td>
+                        <td>Nguyễn Trọng Hiếu</td>
+                        <td>4</td>
+                        <td class="topic">—</td>
+                        <td><label class="absent"><input type="radio" name="student_14" id="absent_14" value="0"> Absent
+                                <small>Vắng mặt</small></label><label class="present"><input type="radio"
+                                    name="student_14" id="present_14" value="1"> Present <small>Có mặt</small></label>
+                        </td>
+                        <td><input class="comment" aria-label="Ghi chú SE180504" placeholder="Ghi chú"></td>
+                    </tr>
+                    <tr data-student-code="SE150512" data-email="HuyDNSE150512@fpt.edu.vn"
+                        data-roll-name="huydnse150512" data-group="4" data-topic="">
+                        <td>16</td>
+                        <td>
+                            <div class="avatar">NH</div>
+                        </td>
+                        <td class="roll">SE150512</td>
+                        <td class="email">HuyDNSE150512@fpt.edu.vn</td>
+                        <td class="rollname">huydnse150512</td>
+                        <td>Đặng Nhật Huy</td>
+                        <td>4</td>
+                        <td class="topic">—</td>
+                        <td><label class="absent"><input type="radio" name="student_15" id="absent_15" value="0"> Absent
+                                <small>Vắng mặt</small></label><label class="present"><input type="radio"
+                                    name="student_15" id="present_15" value="1"> Present <small>Có mặt</small></label>
+                        </td>
+                        <td><input class="comment" aria-label="Ghi chú SE150512" placeholder="Ghi chú"></td>
+                    </tr>
+                    <tr data-student-code="SE180429" data-email="HuyNHSE180429@fpt.edu.vn"
+                        data-roll-name="HuyNHSE180429" data-group="4"
+                        data-topic="Ứng dụng review tài liệu Capstone Project - phần Testing">
+                        <td>17</td>
+                        <td>
+                            <div class="avatar">HH</div>
+                        </td>
+                        <td class="roll">SE180429</td>
+                        <td class="email">HuyNHSE180429@fpt.edu.vn</td>
+                        <td class="rollname">HuyNHSE180429</td>
+                        <td>Nguyễn Hoàng Huy</td>
+                        <td>4</td>
+                        <td class="topic">Ứng dụng review tài liệu Capstone Project - phần Testing</td>
+                        <td><label class="absent"><input type="radio" name="student_16" id="absent_16" value="0"> Absent
+                                <small>Vắng mặt</small></label><label class="present"><input type="radio"
+                                    name="student_16" id="present_16" value="1"> Present <small>Có mặt</small></label>
+                        </td>
+                        <td><input class="comment" aria-label="Ghi chú SE180429" placeholder="Ghi chú"></td>
+                    </tr>
+                    <tr data-student-code="SE184057" data-email="NamHXASE184057@fpt.edu.vn"
+                        data-roll-name="NamHXASE184057" data-group="4" data-topic="">
+                        <td>18</td>
+                        <td>
+                            <div class="avatar">AN</div>
+                        </td>
+                        <td class="roll">SE184057</td>
+                        <td class="email">NamHXASE184057@fpt.edu.vn</td>
+                        <td class="rollname">NamHXASE184057</td>
+                        <td>Hồ Xuân Anh Nam</td>
+                        <td>4</td>
+                        <td class="topic">—</td>
+                        <td><label class="absent"><input type="radio" name="student_17" id="absent_17" value="0"> Absent
+                                <small>Vắng mặt</small></label><label class="present"><input type="radio"
+                                    name="student_17" id="present_17" value="1"> Present <small>Có mặt</small></label>
+                        </td>
+                        <td><input class="comment" aria-label="Ghi chú SE184057" placeholder="Ghi chú"></td>
+                    </tr>
+                    <tr data-student-code="SE190185" data-email="nhoxluachop@gmail.com" data-roll-name="AnhLNSE190185"
+                        data-group="6" data-topic="Obsidian">
+                        <td>19</td>
+                        <td>
+                            <div class="avatar">NA</div>
+                        </td>
+                        <td class="roll">SE190185</td>
+                        <td class="email">nhoxluachop@gmail.com</td>
+                        <td class="rollname">AnhLNSE190185</td>
+                        <td>Lê Nhựt Anh</td>
+                        <td>6</td>
+                        <td class="topic">Obsidian</td>
+                        <td><label class="absent"><input type="radio" name="student_18" id="absent_18" value="0"> Absent
+                                <small>Vắng mặt</small></label><label class="present"><input type="radio"
+                                    name="student_18" id="present_18" value="1"> Present <small>Có mặt</small></label>
+                        </td>
+                        <td><input class="comment" aria-label="Ghi chú SE190185" placeholder="Ghi chú"></td>
+                    </tr>
+                    <tr data-student-code="SE190126" data-email="duongkien.090905@gmail.com"
+                        data-roll-name="KienDTSE190126" data-group="6" data-topic="Attendance">
+                        <td>20</td>
+                        <td>
+                            <div class="avatar">TK</div>
+                        </td>
+                        <td class="roll">SE190126</td>
+                        <td class="email">duongkien.090905@gmail.com</td>
+                        <td class="rollname">KienDTSE190126</td>
+                        <td>Dương Trung Kiên</td>
+                        <td>6</td>
+                        <td class="topic">Attendance</td>
+                        <td><label class="absent"><input type="radio" name="student_19" id="absent_19" value="0"> Absent
+                                <small>Vắng mặt</small></label><label class="present"><input type="radio"
+                                    name="student_19" id="present_19" value="1"> Present <small>Có mặt</small></label>
+                        </td>
+                        <td><input class="comment" aria-label="Ghi chú SE190126" placeholder="Ghi chú"></td>
+                    </tr>
+                    <tr data-student-code="SE190187" data-email="nguyenvo9102005@gmail.com"
+                        data-roll-name="NguyenVLSE190187" data-group="6" data-topic="">
+                        <td>21</td>
+                        <td>
+                            <div class="avatar">LN</div>
+                        </td>
+                        <td class="roll">SE190187</td>
+                        <td class="email">nguyenvo9102005@gmail.com</td>
+                        <td class="rollname">NguyenVLSE190187</td>
+                        <td>Võ Lâm Nguyên</td>
+                        <td>6</td>
+                        <td class="topic">—</td>
+                        <td><label class="absent"><input type="radio" name="student_20" id="absent_20" value="0"> Absent
+                                <small>Vắng mặt</small></label><label class="present"><input type="radio"
+                                    name="student_20" id="present_20" value="1"> Present <small>Có mặt</small></label>
+                        </td>
+                        <td><input class="comment" aria-label="Ghi chú SE190187" placeholder="Ghi chú"></td>
+                    </tr>
+                    <tr data-student-code="SE180289" data-email="ThucNCSE180289@fpt.edu.vn"
+                        data-roll-name="ThucNCSE180289" data-group="6" data-topic="">
+                        <td>22</td>
+                        <td>
+                            <div class="avatar">CT</div>
+                        </td>
+                        <td class="roll">SE180289</td>
+                        <td class="email">ThucNCSE180289@fpt.edu.vn</td>
+                        <td class="rollname">ThucNCSE180289</td>
+                        <td>Nguyễn Công Thức</td>
+                        <td>6</td>
+                        <td class="topic">—</td>
+                        <td><label class="absent"><input type="radio" name="student_21" id="absent_21" value="0"> Absent
+                                <small>Vắng mặt</small></label><label class="present"><input type="radio"
+                                    name="student_21" id="present_21" value="1"> Present <small>Có mặt</small></label>
+                        </td>
+                        <td><input class="comment" aria-label="Ghi chú SE180289" placeholder="Ghi chú"></td>
+                    </tr>
+                    <tr data-student-code="SE180187" data-email="BaoNQSE180187@fpt.edu.vn"
+                        data-roll-name="BaoNQSE180187" data-group="7" data-topic="Tetsing">
+                        <td>23</td>
+                        <td>
+                            <div class="avatar">QB</div>
+                        </td>
+                        <td class="roll">SE180187</td>
+                        <td class="email">BaoNQSE180187@fpt.edu.vn</td>
+                        <td class="rollname">BaoNQSE180187</td>
+                        <td>Ninh Quốc Bảo</td>
+                        <td>7</td>
+                        <td class="topic">Tetsing</td>
+                        <td><label class="absent"><input type="radio" name="student_22" id="absent_22" value="0"> Absent
+                                <small>Vắng mặt</small></label><label class="present"><input type="radio"
+                                    name="student_22" id="present_22" value="1"> Present <small>Có mặt</small></label>
+                        </td>
+                        <td><input class="comment" aria-label="Ghi chú SE180187" placeholder="Ghi chú"></td>
+                    </tr>
+                    <tr data-student-code="SE182024" data-email="DuyLDSE182024@fpt.edu.vn"
+                        data-roll-name="DuyLDSE182024" data-group="7" data-topic="">
+                        <td>24</td>
+                        <td>
+                            <div class="avatar">ĐD</div>
+                        </td>
+                        <td class="roll">SE182024</td>
+                        <td class="email">DuyLDSE182024@fpt.edu.vn</td>
+                        <td class="rollname">DuyLDSE182024</td>
+                        <td>Lưu Đình Duy</td>
+                        <td>7</td>
+                        <td class="topic">—</td>
+                        <td><label class="absent"><input type="radio" name="student_23" id="absent_23" value="0"> Absent
+                                <small>Vắng mặt</small></label><label class="present"><input type="radio"
+                                    name="student_23" id="present_23" value="1"> Present <small>Có mặt</small></label>
+                        </td>
+                        <td><input class="comment" aria-label="Ghi chú SE182024" placeholder="Ghi chú"></td>
+                    </tr>
+                    <tr data-student-code="SE172822" data-email="HieuLCSE172822@fpt.edu.vn"
+                        data-roll-name="HieuLCSE172822" data-group="7" data-topic="">
+                        <td>25</td>
+                        <td>
+                            <div class="avatar">CH</div>
+                        </td>
+                        <td class="roll">SE172822</td>
+                        <td class="email">HieuLCSE172822@fpt.edu.vn</td>
+                        <td class="rollname">HieuLCSE172822</td>
+                        <td>Lê Chí Hiếu</td>
+                        <td>7</td>
+                        <td class="topic">—</td>
+                        <td><label class="absent"><input type="radio" name="student_24" id="absent_24" value="0"> Absent
+                                <small>Vắng mặt</small></label><label class="present"><input type="radio"
+                                    name="student_24" id="present_24" value="1"> Present <small>Có mặt</small></label>
+                        </td>
+                        <td><input class="comment" aria-label="Ghi chú SE172822" placeholder="Ghi chú"></td>
+                    </tr>
+                    <tr data-student-code="SE180728" data-email="LongPTSE180728@fpt.edu.vn"
+                        data-roll-name="LongPTSE180728" data-group="7" data-topic="">
+                        <td>26</td>
+                        <td>
+                            <div class="avatar">TL</div>
+                        </td>
+                        <td class="roll">SE180728</td>
+                        <td class="email">LongPTSE180728@fpt.edu.vn</td>
+                        <td class="rollname">LongPTSE180728</td>
+                        <td>Phạm Trương Long</td>
+                        <td>7</td>
+                        <td class="topic">—</td>
+                        <td><label class="absent"><input type="radio" name="student_25" id="absent_25" value="0"> Absent
+                                <small>Vắng mặt</small></label><label class="present"><input type="radio"
+                                    name="student_25" id="present_25" value="1"> Present <small>Có mặt</small></label>
+                        </td>
+                        <td><input class="comment" aria-label="Ghi chú SE180728" placeholder="Ghi chú"></td>
+                    </tr>
+                    <tr data-student-code="SE183606" data-email="TienNMSE183606@fpt.edu.vn"
+                        data-roll-name="TienNMSE183606" data-group="7" data-topic="">
+                        <td>27</td>
+                        <td>
+                            <div class="avatar">MT</div>
+                        </td>
+                        <td class="roll">SE183606</td>
+                        <td class="email">TienNMSE183606@fpt.edu.vn</td>
+                        <td class="rollname">TienNMSE183606</td>
+                        <td>Nguyễn Minh Tiến</td>
+                        <td>7</td>
+                        <td class="topic">—</td>
+                        <td><label class="absent"><input type="radio" name="student_26" id="absent_26" value="0"> Absent
+                                <small>Vắng mặt</small></label><label class="present"><input type="radio"
+                                    name="student_26" id="present_26" value="1"> Present <small>Có mặt</small></label>
+                        </td>
+                        <td><input class="comment" aria-label="Ghi chú SE183606" placeholder="Ghi chú"></td>
+                    </tr>
+                    <tr data-student-code="SE190572" data-email="tuanhbinglongbp@gmail.com"
+                        data-roll-name="AnhNTTSE190572" data-group="8" data-topic="Requirments">
+                        <td>28</td>
+                        <td>
+                            <div class="avatar">TA</div>
+                        </td>
+                        <td class="roll">SE190572</td>
+                        <td class="email">tuanhbinglongbp@gmail.com</td>
+                        <td class="rollname">AnhNTTSE190572</td>
+                        <td>Nguyễn Thị Tú Anh</td>
+                        <td>8</td>
+                        <td class="topic">Requirments</td>
+                        <td><label class="absent"><input type="radio" name="student_27" id="absent_27" value="0"> Absent
+                                <small>Vắng mặt</small></label><label class="present"><input type="radio"
+                                    name="student_27" id="present_27" value="1"> Present <small>Có mặt</small></label>
+                        </td>
+                        <td><input class="comment" aria-label="Ghi chú SE190572" placeholder="Ghi chú"></td>
+                    </tr>
+                    <tr data-student-code="SE190503" data-email="phuongdongbinhlong@gmail.com"
+                        data-roll-name="DongNNPSE190503" data-group="8" data-topic="">
+                        <td>29</td>
+                        <td>
+                            <div class="avatar">PĐ</div>
+                        </td>
+                        <td class="roll">SE190503</td>
+                        <td class="email">phuongdongbinhlong@gmail.com</td>
+                        <td class="rollname">DongNNPSE190503</td>
+                        <td>Nguyễn Ngọc Phương Đông</td>
+                        <td>8</td>
+                        <td class="topic">—</td>
+                        <td><label class="absent"><input type="radio" name="student_28" id="absent_28" value="0"> Absent
+                                <small>Vắng mặt</small></label><label class="present"><input type="radio"
+                                    name="student_28" id="present_28" value="1"> Present <small>Có mặt</small></label>
+                        </td>
+                        <td><input class="comment" aria-label="Ghi chú SE190503" placeholder="Ghi chú"></td>
+                    </tr>
+                    <tr data-student-code="SE190581" data-email="toilakiet24@gmail.com" data-roll-name="KietDMSE190581"
+                        data-group="8" data-topic="">
+                        <td>30</td>
+                        <td>
+                            <div class="avatar">MK</div>
+                        </td>
+                        <td class="roll">SE190581</td>
+                        <td class="email">toilakiet24@gmail.com</td>
+                        <td class="rollname">KietDMSE190581</td>
+                        <td>Dương Minh Kiệt</td>
+                        <td>8</td>
+                        <td class="topic">—</td>
+                        <td><label class="absent"><input type="radio" name="student_29" id="absent_29" value="0"> Absent
+                                <small>Vắng mặt</small></label><label class="present"><input type="radio"
+                                    name="student_29" id="present_29" value="1"> Present <small>Có mặt</small></label>
+                        </td>
+                        <td><input class="comment" aria-label="Ghi chú SE190581" placeholder="Ghi chú"></td>
+                    </tr>
+                    <tr data-student-code="SE190585" data-email="phuc250805@gmail.com" data-roll-name="PhucTDSE190585"
+                        data-group="8" data-topic="">
+                        <td>31</td>
+                        <td>
+                            <div class="avatar">ĐP</div>
+                        </td>
+                        <td class="roll">SE190585</td>
+                        <td class="email">phuc250805@gmail.com</td>
+                        <td class="rollname">PhucTDSE190585</td>
+                        <td>Trần Đình Phúc</td>
+                        <td>8</td>
+                        <td class="topic">—</td>
+                        <td><label class="absent"><input type="radio" name="student_30" id="absent_30" value="0"> Absent
+                                <small>Vắng mặt</small></label><label class="present"><input type="radio"
+                                    name="student_30" id="present_30" value="1"> Present <small>Có mặt</small></label>
+                        </td>
+                        <td><input class="comment" aria-label="Ghi chú SE190585" placeholder="Ghi chú"></td>
+                    </tr>
+                    <tr data-student-code="SE193591" data-email="iwakeupwhen@gmail.com" data-roll-name="DuyPDSE193591"
+                        data-group="9" data-topic="Paperchat">
+                        <td>32</td>
+                        <td>
+                            <div class="avatar">ĐD</div>
+                        </td>
+                        <td class="roll">SE193591</td>
+                        <td class="email">iwakeupwhen@gmail.com</td>
+                        <td class="rollname">DuyPDSE193591</td>
+                        <td>Phan Đức Duy</td>
+                        <td>9</td>
+                        <td class="topic">Paperchat</td>
+                        <td><label class="absent"><input type="radio" name="student_31" id="absent_31" value="0"> Absent
+                                <small>Vắng mặt</small></label><label class="present"><input type="radio"
+                                    name="student_31" id="present_31" value="1"> Present <small>Có mặt</small></label>
+                        </td>
+                        <td><input class="comment" aria-label="Ghi chú SE193591" placeholder="Ghi chú"></td>
+                    </tr>
+                    <tr data-student-code="SE161951" data-email="PhuocPHSE161951@fpt.edu.vn"
+                        data-roll-name="phuocphse161951" data-group="9" data-topic="">
+                        <td>33</td>
+                        <td>
+                            <div class="avatar">HP</div>
+                        </td>
+                        <td class="roll">SE161951</td>
+                        <td class="email">PhuocPHSE161951@fpt.edu.vn</td>
+                        <td class="rollname">phuocphse161951</td>
+                        <td>Phan Hữu Phước</td>
+                        <td>9</td>
+                        <td class="topic">—</td>
+                        <td><label class="absent"><input type="radio" name="student_32" id="absent_32" value="0"> Absent
+                                <small>Vắng mặt</small></label><label class="present"><input type="radio"
+                                    name="student_32" id="present_32" value="1"> Present <small>Có mặt</small></label>
+                        </td>
+                        <td><input class="comment" aria-label="Ghi chú SE161951" placeholder="Ghi chú"></td>
+                    </tr>
+                    <tr data-student-code="SE193519" data-email="phungthequan030@gmail.com"
+                        data-roll-name="QuanPTSE193519" data-group="9" data-topic="">
+                        <td>34</td>
+                        <td>
+                            <div class="avatar">TQ</div>
+                        </td>
+                        <td class="roll">SE193519</td>
+                        <td class="email">phungthequan030@gmail.com</td>
+                        <td class="rollname">QuanPTSE193519</td>
+                        <td>Phùng Thế Quân</td>
+                        <td>9</td>
+                        <td class="topic">—</td>
+                        <td><label class="absent"><input type="radio" name="student_33" id="absent_33" value="0"> Absent
+                                <small>Vắng mặt</small></label><label class="present"><input type="radio"
+                                    name="student_33" id="present_33" value="1"> Present <small>Có mặt</small></label>
+                        </td>
+                        <td><input class="comment" aria-label="Ghi chú SE193519" placeholder="Ghi chú"></td>
+                    </tr>
+                    <tr data-student-code="SE190992" data-email="kimthuydoan22082005@gmail.com"
+                        data-roll-name="ThuyDTKSE190992" data-group="9" data-topic="">
+                        <td>35</td>
+                        <td>
+                            <div class="avatar">KT</div>
+                        </td>
+                        <td class="roll">SE190992</td>
+                        <td class="email">kimthuydoan22082005@gmail.com</td>
+                        <td class="rollname">ThuyDTKSE190992</td>
+                        <td>Đoàn Thị Kim Thúy</td>
+                        <td>9</td>
+                        <td class="topic">—</td>
+                        <td><label class="absent"><input type="radio" name="student_34" id="absent_34" value="0"> Absent
+                                <small>Vắng mặt</small></label><label class="present"><input type="radio"
+                                    name="student_34" id="present_34" value="1"> Present <small>Có mặt</small></label>
+                        </td>
+                        <td><input class="comment" aria-label="Ghi chú SE190992" placeholder="Ghi chú"></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="footer">
+            <div><strong>Kiểm tra → Lưu điểm danh</strong>
+                <p>Mở extension → quét danh sách → gửi dữ liệu về app desktop → bắt đầu điểm danh.</p>
+                <p>Danh sách kiểm thử hiện tại: 35 sinh viên lớp SE1922.</p>
+            </div><button id="save" type="button" class="primary">Save attendance / Lưu thử</button>
+        </div>
+        <p id="notice" role="status" aria-live="polite"></p>
+    </main>
+    <footer>FAP Attendance Desktop System · Local integration test · SE1922</footer>
+    <script>const table = document.querySelector('tbody'); function update() { const total = table.querySelectorAll('tr[data-student-code]').length, present = table.querySelectorAll('input[value="1"]:checked').length, absent = table.querySelectorAll('input[value="0"]:checked').length; document.getElementById('presentCount').textContent = present; document.getElementById('absentCount').textContent = absent; document.getElementById('pendingCount').textContent = total - present - absent; } table.addEventListener('change', update); document.getElementById('reverse').onclick = () => table.replaceChildren(...[...table.children].reverse()); document.getElementById('reset').onclick = () => { table.querySelectorAll('input[type=radio]').forEach(i => i.checked = false); document.getElementById('notice').textContent = ''; update() }; document.getElementById('save').onclick = () => { const pending = Number(document.getElementById('pendingCount').textContent); document.getElementById('notice').textContent = pending ? 'Còn ' + pending + ' sinh viên chưa chọn trạng thái.' : 'Đã lưu thử trên trang: ' + document.getElementById('presentCount').textContent + ' Có mặt, ' + document.getElementById('absentCount').textContent + ' Vắng mặt. Không gửi dữ liệu tới FAP.' }; update();</script>
+</body>
+
+</html>

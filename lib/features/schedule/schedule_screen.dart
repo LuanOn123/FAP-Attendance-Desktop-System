@@ -415,6 +415,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                       scheduleRepository: widget.repository,
                       initialClassKey: _reportClassKey,
                       initialDateOption: _reportDateOption,
+                      onReportSelected: _integration.selectReport,
                     )
                   : const SizedBox.shrink(),
               profile(),

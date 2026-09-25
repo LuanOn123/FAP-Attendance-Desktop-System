@@ -27,19 +27,21 @@ class ReportTable extends StatelessWidget {
   String _statusLabel(String s) => switch (s) {
     'PRESENT' => 'Có mặt',
     'LATE' => 'Đi muộn',
-    _ => 'Vắng',
+    'ABSENT' => 'Vắng',
+    _ => 'Chưa xác nhận',
   };
 
   String _fapCode(String s) => switch (s) {
     'PRESENT' => 'P',
     'LATE' => 'L',
-    _ => 'A',
+    'ABSENT' => 'A',
+    _ => '—',
   };
 
   String _formatTime(String rawTime) {
     if (rawTime.isEmpty) return '—';
     try {
-      final dt = DateTime.parse(rawTime).toLocal();
+      final dt = DateTime.parse(rawTime).toUtc().add(const Duration(hours: 7));
       return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} '
           '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
     } catch (_) {
@@ -63,7 +65,7 @@ class ReportTable extends StatelessWidget {
             Text(
               selectedClass == null
                   ? 'Chọn lớp học để xem danh sách điểm danh.'
-                  : 'Chưa có sinh viên nào điểm danh qua QR cho buổi này.',
+                  : 'Chưa có dữ liệu báo cáo để hiển thị.',
               style: TextStyle(color: Colors.grey.shade500, fontSize: 14),
               textAlign: TextAlign.center,
             ),

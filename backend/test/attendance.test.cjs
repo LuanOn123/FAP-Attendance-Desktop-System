@@ -75,6 +75,11 @@ function createMockBook() {
         return {
           setValue(val) {
             self.rows[rowIndex - 1][colIndex - 1] = String(val);
+          },
+          setValues(values) {
+            values.forEach((row, i) => row.forEach((value, j) => {
+              self.rows[rowIndex - 1 + i][colIndex - 1 + j] = value;
+            }));
           }
         };
       }
@@ -166,6 +171,41 @@ function studentFixture(overrides = {}) {
   const request = {sessionId: session.sessionId, idToken:'valid-google-id-token-for-tests', token:'VALID_QR', confirmPresent:true};
   return {book, session, request, claims};
 }
+
+test('manual update creates missing roster attendance and retries update the same row', () => {
+  const {book,session} = studentFixture();
+  const request = {action:'updateAttendance',attendanceId:'absent-SE181848',sessionId:session.sessionId,studentCode:'SE181848',status:'PRESENT',note:'Teacher correction',updatedBy:'spoof'};
+  context.handleSession_(book,{},teacher,request);
+  const rows = book.getSheetByName('Attendance').rows;
+  assert.equal(rows.length,2); assert.equal(rows[1][3],'PRESENT'); assert.equal(rows[1][7],teacher.email);
+  context.handleSession_(book,{},teacher,{...request,status:'ABSENT'});
+  assert.equal(rows.length,2); assert.equal(rows[1][3],'ABSENT');
+  assert.throws(()=>context.handleSession_(book,{},teacher,{...request,studentCode:'SE180002'}),/danh sách lớp/);
+  assert.throws(()=>context.handleSession_(book,{}, {...teacher,lecturerId:'other'},request),/quyền/);
+  book.getSheetByName('Sessions').rows[1][6]='RESET';
+  assert.throws(()=>context.handleSession_(book,{},teacher,request),/quyền/);
+});
+test('report correction respects physical rows, session identity and duplicates', () => {
+  const {book, session} = studentFixture();
+  const request = {action:'updateAttendance', attendanceId:'missing', sessionId:session.sessionId, studentCode:'SE181848', status:'ABSENT', note:'original'};
+  const created = context.handleSession_(book, {}, teacher, request);
+  const rows = book.getSheetByName('Attendance').rows;
+  rows.splice(1, 0, ['', '', '', '', '', '', '', '']);
+  rows[2][4] = '2026-09-25T00:00:00Z';
+  rows.push(['other-session-record', 'other-session', 'std-001', 'ABSENT', '', '', '', '']);
+  const update = {...request, attendanceId:created.attendanceId, status:'PRESENT', note:'correction'};
+  context.handleSession_(book, {}, teacher, update);
+  assert.equal(rows[1][3], '');
+  assert.equal(rows[2][3], 'PRESENT');
+  assert.equal(rows[2][4], '2026-09-25T00:00:00Z');
+  assert.equal(rows[2][6], 'correction');
+  assert.equal(rows[3][3], 'ABSENT');
+  assert.throws(() => context.handleSession_(book, {}, teacher, {...update, sessionId:'another'}), /phiên đã chọn/);
+  assert.throws(() => context.handleSession_(book, {}, teacher, {...update, studentCode:'SE180002'}), /MSSV/);
+  rows.push(['duplicate', ...rows[2].slice(1)]);
+  assert.throws(() => context.handleSession_(book, {}, teacher, update), /Trùng bản ghi/);
+});
+
 test('QR needs verified school identity and presence, never trusts supplied MSSV', () => {
   const {request, book} = studentFixture();
   assert.throws(() => context.handleStudentCheckIn_({...request, confirmPresent:false}), /xác nhận/);
@@ -192,7 +232,7 @@ test('enabled secret requires Google and code even with a valid QR', () => {
 test('reject expired/malformed expiry, wrong audience/domain/unverified/non-enrolled account', () => {
   for (const overrides of [{aud:'desktop-client'}, {email:'a@gmail.com'}, {email_verified:false}, {hd:undefined}, {exp:1}, {email:'tranvbse180002@fpt.edu.vn'}]) {
     const {request} = studentFixture(overrides);
-    assert.throws(() => context.handleStudentCheckIn_(request), /trường|danh sách lớp/);
+    assert.throws(() => context.handleStudentCheckIn_(request), /trường|danh sách lớp|GOOGLE_WEB_CLIENT_ID/);
   }
   for (const expiration of ['garbage', new Date(Date.now()-1).toISOString()]) {
     const {request,book} = studentFixture(); book.getSheetByName('Sessions').rows[1][8] = expiration;
