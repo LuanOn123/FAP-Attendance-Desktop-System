@@ -5,6 +5,8 @@ import '../models/session_model.dart';
 import '../services/google_sheet_service.dart';
 import '../models/class_model.dart';
 
+const attendanceTokenLifetime = Duration(hours: 4);
+
 abstract class AttendanceRepository {
   Future<SessionModel> startSession({
     String? date,
@@ -75,7 +77,7 @@ class SheetAttendanceRepository implements AttendanceRepository {
     required String endTime,
     required String lecturerId,
   }) async {
-    final now = DateTime.now();
+    final now = DateTime.now().toUtc().add(const Duration(hours: 7));
     final today =
         '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
     final token = List.generate(
@@ -83,9 +85,9 @@ class SheetAttendanceRepository implements AttendanceRepository {
       (_) => Random.secure().nextInt(256).toRadixString(16).padLeft(2, '0'),
     ).join();
     const secret = '';
-    final expiresAt = now
+    final expiresAt = DateTime.now()
         .toUtc()
-        .add(const Duration(seconds: 120))
+        .add(attendanceTokenLifetime)
         .toIso8601String();
 
     dynamic result;
@@ -94,6 +96,7 @@ class SheetAttendanceRepository implements AttendanceRepository {
         'classId': classId,
         'date': date ?? today,
         'slot': slot,
+        'durationMinutes': 10,
         'startTime': startTime,
         'endTime': endTime,
         'currentToken': token,
@@ -101,6 +104,23 @@ class SheetAttendanceRepository implements AttendanceRepository {
         'tokenExpiredAt': expiresAt,
       });
     } on AppException catch (e) {
+      const scheduleErrors = {
+        'OCCURRENCE_NOT_YET':
+            'Chưa đến giờ mở điểm danh. Chỉ mở trong ngày học, từ 15 phút trước giờ bắt đầu.',
+        'OCCURRENCE_ENDED':
+            'Buổi học đã kết thúc. Chỉ xem kết quả; không mở phiên mới.',
+        'OCCURRENCE_TOO_SHORT':
+            'Còn dưới 1 phút giờ học. Không thể mở phiên mới.',
+        'OCCURRENCE_NOT_FOUND':
+            'Không tìm thấy buổi học hợp lệ. Kiểm tra lịch, ngày, slot hoặc ngoại lệ lịch trên Mobile.',
+        'OCCURRENCE_DUPLICATE':
+            'Lịch có nhiều buổi trùng khóa. Cần kiểm tra dữ liệu trước khi điểm danh.',
+        'SESSION_RESET_REQUIRES_DESKTOP':
+            'Phiên đã reset. Tải lại dữ liệu và dùng thao tác reset hiện có.',
+      };
+      for (final entry in scheduleErrors.entries) {
+        if (e.message.contains(entry.key)) throw AppException(entry.value);
+      }
       if (e.message.contains('Thao tác chưa được hỗ trợ')) {
         throw const AppException(
           'Apps Script đang dùng bản cũ. Hãy copy Code.gs mới nhất lên Google Apps Script và tạo Deployment mới để sử dụng tính năng Điểm danh.',
@@ -302,7 +322,7 @@ class DemoAttendanceRepository implements AttendanceRepository {
     const secret = '';
     final expiresAt = now
         .toUtc()
-        .add(const Duration(seconds: 120))
+        .add(attendanceTokenLifetime)
         .toIso8601String();
 
     final session = SessionModel(

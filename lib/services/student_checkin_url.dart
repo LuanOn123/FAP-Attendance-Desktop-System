@@ -6,6 +6,6 @@ Uri studentCheckinUrl({
 }) => Uri.https('fap-attendance-cba45.web.app', '/checkin', {
   'sessionId': sessionId,
   'token': token,
-  'mode': secretEnabled ? 'secret' : 'google',
-  'v': '2',
+  'mode': secretEnabled ? 'student-code-secret' : 'student-code',
+  'v': '3',
 });

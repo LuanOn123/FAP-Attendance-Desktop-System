@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -20,24 +19,13 @@ class SessionQrDisplayWidget extends StatefulWidget {
 
 class _SessionQrDisplayWidgetState extends State<SessionQrDisplayWidget> {
   late String token, secret;
-  static const lifetime = 120;
-  int seconds = lifetime;
   bool busy = false;
   String? error;
-  Timer? timer;
   @override
   void initState() {
     super.initState();
     token = widget.initialToken;
     secret = widget.initialSecretCode;
-    timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted || busy || error != null) return;
-      if (seconds > 1) {
-        setState(() => seconds--);
-      } else {
-        rotate();
-      }
-    });
   }
 
   Future<void> rotate({bool? enableSecret}) async {
@@ -60,7 +48,6 @@ class _SessionQrDisplayWidgetState extends State<SessionQrDisplayWidget> {
         setState(() {
           token = nextToken;
           secret = nextSecret;
-          seconds = lifetime;
         });
       }
     } catch (_) {
@@ -75,9 +62,14 @@ class _SessionQrDisplayWidgetState extends State<SessionQrDisplayWidget> {
   }
 
   @override
-  void dispose() {
-    timer?.cancel();
-    super.dispose();
+  void didUpdateWidget(SessionQrDisplayWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!busy &&
+        (widget.initialToken != oldWidget.initialToken ||
+            widget.initialSecretCode != oldWidget.initialSecretCode)) {
+      token = widget.initialToken;
+      secret = widget.initialSecretCode;
+    }
   }
 
   @override
@@ -101,7 +93,7 @@ class _SessionQrDisplayWidgetState extends State<SessionQrDisplayWidget> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Đăng nhập email trường để xác nhận có mặt.',
+                'Đăng nhập Google bằng email trường và xác nhận đang có mặt trong lớp.',
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 20),
@@ -127,13 +119,16 @@ class _SessionQrDisplayWidgetState extends State<SessionQrDisplayWidget> {
                   ),
                 ),
               const SizedBox(height: 16),
-              LinearProgressIndicator(value: seconds / lifetime),
-              const SizedBox(height: 8),
-              Text('Đổi mã sau: ${seconds}s'),
+              const Text(
+                'Mã giữ nguyên trong phiên. Chỉ đổi khi giảng viên yêu cầu.',
+                textAlign: TextAlign.center,
+              ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Mở Secret Code'),
-                subtitle: const Text('Yêu cầu Google và mã Secret khi bật'),
+                subtitle: const Text(
+                  'Yêu cầu email trường và mã Secret khi bật',
+                ),
                 value: secret.isNotEmpty,
                 onChanged: busy ? null : (value) => rotate(enableSecret: value),
               ),

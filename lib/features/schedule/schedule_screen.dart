@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../groups/group_screen.dart';
 import '../../core/theme/app_palette.dart';
 import '../../core/app_config.dart';
 import '../../models/class_model.dart';
@@ -18,6 +19,12 @@ import '../../services/integration_server.dart';
 import '../../models/fap_import_dto.dart';
 import 'dart:async';
 import '../../services/schedule_clock.dart';
+import '../../repositories/student_portal_repository.dart';
+import '../student_portal/student_portal_screen.dart';
+import '../../repositories/daily_attendance_repository.dart';
+import '../../services/attendance_local_store.dart';
+import '../../models/teaching_occurrence.dart';
+import '../attendance/attendance_day_panel.dart';
 
 class ScheduleScreen extends StatefulWidget {
   final Lecturer lecturer;
@@ -26,6 +33,8 @@ class ScheduleScreen extends StatefulWidget {
   final IntegrationServer? integrationServer;
   final Future<void> Function() onLogout;
   final DateTime Function()? clock;
+  final DailyAttendanceRepository? dailyAttendanceRepository;
+  final AttendanceLocalStore? attendanceLocalStore;
   const ScheduleScreen({
     super.key,
     required this.lecturer,
@@ -34,6 +43,8 @@ class ScheduleScreen extends StatefulWidget {
     this.integrationServer,
     required this.onLogout,
     this.clock,
+    this.dailyAttendanceRepository,
+    this.attendanceLocalStore,
   });
   @override
   State<ScheduleScreen> createState() => _ScheduleScreenState();
@@ -55,6 +66,14 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
             )
           : DemoAttendanceRepository());
   int destination = 0;
+  bool _portalLeavesVisited = false;
+  bool _portalGradesVisited = false;
+  late final StudentPortalRepository _portalRepo =
+      widget.repository is SheetScheduleRepository
+      ? SheetStudentPortalRepository(
+          (widget.repository as SheetScheduleRepository).sheets,
+        )
+      : DemoStudentPortalRepository();
   bool weekly = true;
   String? semesterFilter;
   StreamSubscription? _importSub;
@@ -62,6 +81,24 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   String? _attendanceScheduleId;
   String? _attendanceDate;
   Timer? _clockTimer;
+  Schedule? _attendanceOverride;
+  late final DailyAttendanceRepository _dailyRepo =
+      widget.dailyAttendanceRepository ??
+      (widget.repository is SheetScheduleRepository
+          ? SheetDailyAttendanceRepository(
+              (widget.repository as SheetScheduleRepository).sheets,
+            )
+          : DemoDailyAttendanceRepository(
+              widget.repository,
+              _attendanceRepo,
+              widget.lecturer.lecturerId,
+              clock: widget.clock,
+            ));
+  late final AttendanceLocalStore _attendanceStore =
+      widget.attendanceLocalStore ??
+      (widget.repository is SheetScheduleRepository
+          ? SecureAttendanceLocalStore()
+          : MemoryAttendanceLocalStore());
   List<Schedule> get _currentSlots => schedules
       .where(
         (s) =>
@@ -73,14 +110,17 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
             ),
       )
       .toList();
-  void _openAttendance([Schedule? schedule]) {
+  void _openAttendance([Schedule? schedule, String? exactDate]) {
     setState(() {
+      _attendanceOverride = exactDate == null ? null : schedule;
       final target =
           schedule?.scheduleId ??
           (_currentSlots.length == 1 ? _currentSlots.single.scheduleId : null);
       final date =
+          exactDate ??
           _importDates[target] ??
           ScheduleClock.date(ScheduleClock.now(widget.clock?.call()));
+      if (exactDate != null && target != null) _importDates[target] = exactDate;
       if (!_attendanceVisited ||
           (target != null &&
               (target != _attendanceScheduleId || date != _attendanceDate)) ||
@@ -94,6 +134,51 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       _attendanceVisited = true;
       destination = 2;
     });
+  }
+
+  void _openDayQr(TeachingOccurrence lesson) {
+    final cls = classes.where((c) => c.classId == lesson.classId).firstOrNull;
+    if (cls == null) return;
+    final schedule = Schedule(
+      scheduleId: '${lesson.data['scheduleId']}',
+      lecturerId: widget.lecturer.lecturerId,
+      semester: cls.semester,
+      subjectCode: cls.subjectCode,
+      subjectName: '${lesson.data['subjectName'] ?? cls.subjectCode}',
+      classCode: cls.classCode,
+      dayOfWeek: DateTime.parse(lesson.date).weekday,
+      slot: lesson.slot,
+      startTime: '${lesson.data['scheduledStartTime']}',
+      endTime: '${lesson.data['scheduledEndTime']}',
+      room: lesson.room,
+      sourceType: 'MANUAL',
+    );
+    _openAttendance(schedule, lesson.date);
+  }
+
+  void _showDailyAttendance() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (ctx) => Scaffold(
+          appBar: AppBar(title: const Text('Điểm danh trong ngày')),
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: AttendanceDayPanel(
+              repository: _dailyRepo,
+              owner: widget.lecturer.lecturerId,
+              store: _attendanceStore,
+              portalRepository: _portalRepo,
+              withReminders: false,
+              clock: widget.clock,
+              onOpenQr: (lesson) {
+                Navigator.pop(ctx);
+                _openDayQr(lesson);
+              },
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   final Map<String, String> _importDates = {};
@@ -300,6 +385,11 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         style: TextStyle(fontWeight: FontWeight.w700),
       ),
       actions: [
+        IconButton(
+          tooltip: 'Điểm danh nhanh hôm nay',
+          onPressed: _showDailyAttendance,
+          icon: const Icon(Icons.fact_check_outlined),
+        ),
         Tooltip(
           message:
               _bridgeError ??
@@ -341,7 +431,11 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
             if (value == 2) {
               _openAttendance();
             } else {
-              setState(() => destination = value);
+              setState(() {
+                destination = value;
+                if (value == 5) _portalLeavesVisited = true;
+                if (value == 6) _portalGradesVisited = true;
+              });
             }
           },
           labelType: NavigationRailLabelType.all,
@@ -365,6 +459,18 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
             NavigationRailDestination(
               icon: Icon(Icons.person_outline),
               label: Text('Hồ sơ'),
+            ),
+            NavigationRailDestination(
+              icon: Icon(Icons.event_busy_outlined),
+              label: Text('Xin nghỉ'),
+            ),
+            NavigationRailDestination(
+              icon: Icon(Icons.grading_outlined),
+              label: Text('Điểm số'),
+            ),
+            NavigationRailDestination(
+              icon: Icon(Icons.forum_outlined),
+              label: Text('Nhóm học tập'),
             ),
           ],
         ),
@@ -391,10 +497,17 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
               _attendanceVisited
                   ? AttendanceScreen(
                       lecturer: widget.lecturer,
-                      schedules: schedules,
+                      schedules: [
+                        for (final s in schedules)
+                          if (s.scheduleId != _attendanceOverride?.scheduleId)
+                            s,
+                        if (_attendanceOverride != null) _attendanceOverride!,
+                      ],
                       clock: widget.clock,
                       classes: classes,
                       repository: _attendanceRepo,
+                      portalRepository: _portalRepo,
+                      onOpenDailyAttendance: _showDailyAttendance,
                       scheduleRepository: widget.repository,
                       currentScheduleId: _attendanceScheduleId,
                       importedDates: Map.of(_importDates),
@@ -418,6 +531,18 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                     )
                   : const SizedBox.shrink(),
               profile(),
+              _portalLeavesVisited
+                  ? StudentPortalScreen(
+                      repository: _portalRepo,
+                      leaveRequests: true,
+                    )
+                  : const SizedBox.shrink(),
+              _portalGradesVisited
+                  ? StudentPortalScreen(repository: _portalRepo)
+                  : const SizedBox.shrink(),
+              destination == 7
+                  ? GroupScreen(repository: _portalRepo)
+                  : const SizedBox.shrink(),
             ],
           ),
         ),
@@ -492,6 +617,15 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
               Icons.rule,
             ),
           ],
+        ),
+        AttendanceDayPanel(
+          compact: true,
+          repository: _dailyRepo,
+          owner: widget.lecturer.lecturerId,
+          store: _attendanceStore,
+          portalRepository: _portalRepo,
+          clock: widget.clock,
+          onOpenQr: _openDayQr,
         ),
         const SizedBox(height: 24),
         Wrap(
@@ -735,12 +869,18 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
             onPressed: loading ? null : () => Navigator.pop(context, 'edit'),
             child: const Text('Sửa lịch'),
           ),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.pop(context, 'daily'),
+            icon: const Icon(Icons.fact_check_outlined),
+            label: const Text('Điểm danh trong ngày'),
+          ),
         ],
       ),
     );
     if (!mounted) return;
     if (action == 'edit') await edit(row);
     if (action == 'delete') await delete(row);
+    if (action == 'daily') _showDailyAttendance();
   }
 
   Widget stat(String label, String value, IconData icon) => SizedBox(

@@ -1,5 +1,11 @@
 # FAP Attendance Desktop — Member 1
 
+> **30/10/2026 — Điểm danh nhanh đồng bộ mobile:** đã thêm luồng mặc định Có mặt, chọn ngoại lệ Vắng, xem trước/xác nhận và điều chỉnh đến trước 00:00 ngày hôm sau. Có nhắc Windows khi app đang chạy và đồng bộ buổi đã chốt trên mobile. Xem [hướng dẫn backend và cách dùng](docs/DESKTOP_MOBILE_DAILY_ATTENDANCE.md).
+
+> **Nâng cấp cổng sinh viên:** đã thêm menu Xin nghỉ, Điểm số và danh sách đơn ngay tại phiên điểm danh. Backend mới nằm ở `C:/PRM/lecture_mobile/backend/apps_script/StudentPortal.gs`; hướng dẫn khởi tạo, cấu hình và chuyển điểm tại `C:/PRM/fu-grade-web/IMPLEMENTATION.md`. Cần cập nhật backend chung và build lại desktop để sử dụng thật.
+
+> Backend dùng chung với Mobile: triển khai bộ 6 file `.gs` từ `C:/PRM/lecture_mobile/backend/apps_script`, bao gồm `ScheduleAttendance.gs`. Không ghi đè deployment chung bằng `Code.gs` độc lập trong repo Desktop. Luồng phiên mới mặc định 10 phút, kiểm tra lịch/ngoại lệ và cửa sổ 15 phút trước giờ học; hạn do server giới hạn theo giờ kết thúc. Xem `C:/PRM/lecture_mobile/docs/ATTENDANCE_SLOT_REFACTOR_REPORT.md`.
+
 Flutter Windows / Dart, theo phần **Leader / Auth / OCR Schedule / Core Integration** của tài liệu phân công PRM393.
 Không sử dụng FAP API, không đăng nhập FAP và không lưu mật khẩu Google/FAP.
 

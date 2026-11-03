@@ -217,4 +217,27 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
+  testWidgets('QR stays stable until lecturer rotates it', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1000, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    var rotations = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SessionQrDisplayWidget(
+            sessionId: 's1',
+            initialToken: 'stable-token',
+            initialSecretCode: '',
+            onRotateToken: (_, _) async => rotations++,
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(minutes: 10));
+    expect(rotations, 0);
+    expect(find.textContaining('Mã giữ nguyên trong phiên'), findsOneWidget);
+    await tester.tap(find.text('Đổi mã ngay'));
+    await tester.pumpAndSettle();
+    expect(rotations, 1);
+  });
 }

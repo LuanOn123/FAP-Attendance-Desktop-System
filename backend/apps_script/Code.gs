@@ -372,19 +372,31 @@ function authenticateStudent_(idToken, cfg, book) {
   if (response.getResponseCode() !== 200) throw new Error('Phiên Google không hợp lệ. Đăng nhập lại.');
   const claims = JSON.parse(response.getContentText());
   const email = String(claims.email || '').trim().toLowerCase();
+  // `hd` is the Google Workspace primary domain, which can differ from the
+  // domain of a verified alias used by a student (for example an FPT alias).
+  // Requiring both domains to match rejects legitimate roster accounts. The
+  // verified email domain and the exact, unique roster match below are the
+  // authoritative checks for student access.
   if (claims.aud !== cfg.webAudience || !['accounts.google.com', 'https://accounts.google.com'].includes(claims.iss) ||
       !Number.isFinite(Number(claims.exp)) || Number(claims.exp) <= Date.now()/1000 ||
-      ![true, 'true'].includes(claims.email_verified) || !cfg.domains.includes(email.split('@')[1]) || !cfg.domains.includes(claims.hd)) throw new Error('Chỉ tài khoản Google email trường đã xác minh được phép điểm danh.');
+      ![true, 'true'].includes(claims.email_verified) || !cfg.domains.includes(email.split('@')[1])) throw new Error('Chỉ tài khoản Google email trường đã xác minh được phép điểm danh.');
   const matches = read_(book, 'Students').rows.filter(s => String(s.schoolEmail).trim().toLowerCase() === email);
   if (matches.length !== 1) throw new Error('Email trường chưa có trong danh sách sinh viên hoặc đang bị trùng. Liên hệ giảng viên.');
   return matches[0];
 }
-function studentContext_(request, cfg, book) {
-  const student = authenticateStudent_(request.idToken, cfg, book);
+function studentContext_(request, cfg, book, byCode = false) {
+  let student;
+  if (byCode) {
+    const code = String(request.studentCode || '').trim().toUpperCase();
+    if (!/^[A-Z0-9]{5,20}$/.test(code)) throw new Error('Vui lòng nhập MSSV hợp lệ.');
+    const matches = read_(book, 'Students').rows.filter(s => String(s.studentCode).trim().toUpperCase() === code);
+    if (matches.length !== 1) throw new Error('MSSV chưa có hoặc bị trùng trong danh sách sinh viên.');
+    student = matches[0];
+  } else student = authenticateStudent_(request.idToken, cfg, book);
   const session = read_(book, 'Sessions').rows.find(s => s.sessionId === request.sessionId);
   if (!session) throw new Error('Phiên điểm danh không tồn tại.');
   if (session.status !== 'OPEN') throw new Error('Phiên đã kết thúc hoặc được reset. Quét mã mới.');
-  if (!read_(book, 'Enrollments').rows.some(e => e.classId === session.classId && e.studentId === student.studentId)) throw new Error('Email của bạn không thuộc danh sách lớp của buổi học này.');
+  if (!read_(book, 'Enrollments').rows.some(e => e.classId === session.classId && e.studentId === student.studentId)) throw new Error('Sinh viên không thuộc danh sách lớp của buổi học này.');
   const cls = read_(book, 'Classes').rows.find(c => c.classId === session.classId);
   if (!cls) throw new Error('Không tìm thấy lớp học.');
   return {student, session, cls};
@@ -397,19 +409,33 @@ function handleStudentSession_(request) {
       date: session.date, slot: session.slot, startTime: session.startTime, endTime: session.endTime,
       secretEnabled: !!sessionView_(session).currentSecretCode}};
 }
-function handleStudentCheckIn_(request) {
+function handleStudentCodeSession_(request) {
+  const book = SpreadsheetApp.openById(config_().id);
+  const session = read_(book, 'Sessions').rows.find(s => s.sessionId === request.sessionId);
+  if (!session) throw new Error('Phiên điểm danh không tồn tại.');
+  if (session.status !== 'OPEN') throw new Error('Phiên đã kết thúc hoặc được reset. Quét mã mới.');
+  const view = sessionView_(session);
+  const cls = read_(book, 'Classes').rows.find(c => c.classId === session.classId);
+  if (!cls) throw new Error('Không tìm thấy lớp học.');
+  return {session: {classCode: cls.classCode, subjectCode: cls.subjectCode, date: session.date,
+    slot: session.slot, startTime: session.startTime, endTime: session.endTime,
+    secretEnabled: !!view.currentSecretCode}, checkInMode: 'student-code-v2'};
+}
+function handleStudentCheckIn_(request, byCode = false) {
   if (request.confirmPresent !== true) throw new Error('Bạn phải xác nhận đang có mặt trong lớp để điểm danh.');
   const cfg = config_(), book = SpreadsheetApp.openById(cfg.id);
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(15000)) throw new Error('Hệ thống đang bận. Thử lại.');
   try {
-    const {student, session} = studentContext_(request, cfg, book);
+    const {student, session} = studentContext_(request, cfg, book, byCode);
     const view = sessionView_(session);
-    const expires = new Date(session.tokenExpiredAt).getTime();
-    if (!Number.isFinite(expires) || Date.now() >= expires) throw new Error('Mã điểm danh đã hết hạn. Quét mã mới hoặc nhập Secret Code hiện tại.');
+    if (!byCode) {
+      const expires = new Date(session.tokenExpiredAt).getTime();
+      if (!Number.isFinite(expires) || Date.now() >= expires) throw new Error('Mã điểm danh đã hết hạn. Quét mã mới hoặc nhập Secret Code hiện tại.');
+    }
     if (view.currentSecretCode) {
       if (String(request.secretCode || '') !== view.currentSecretCode) throw new Error('Giảng viên đang bật Secret Code. Nhập mã hiện tại hoặc quét lại QR.');
-    } else {
+    } else if (!byCode) {
       if (request.useSecret === true) throw new Error('Secret Code chưa được bật. Quét lại mã QR.');
       if (!view.currentToken || String(request.token || '') !== view.currentToken) throw new Error('Mã QR không hợp lệ hoặc đã thay đổi. Quét mã mới.');
     }
@@ -417,7 +443,9 @@ function handleStudentCheckIn_(request) {
     if (attendance.rows.some(a => a.sessionId === session.sessionId && a.studentId === student.studentId)) throw new Error('Bạn đã điểm danh trong phiên này.');
     const nowIso = new Date().toISOString();
     const record = {attendanceId: Utilities.getUuid(), sessionId: session.sessionId, studentId: student.studentId,
-      status: 'PRESENT', checkInTime: nowIso, updatedAt: nowIso, note: 'Google verified; presence confirmed', updatedBy: student.schoolEmail};
+      status: 'PRESENT', checkInTime: nowIso, updatedAt: nowIso,
+      note: byCode ? 'Student code; presence confirmed' : 'Google verified; presence confirmed',
+      updatedBy: byCode ? student.studentCode : student.schoolEmail};
     attendance.sheet.appendRow(SCHEMA.Attendance.map(key => String(record[key] || '')));
     return {status: record.status, checkInTime: nowIso, studentCode: student.studentCode, fullName: student.fullName};
   } finally { lock.releaseLock(); }
@@ -546,7 +574,13 @@ function doPost(e) {
     if (!text || text.length > 200000) throw new Error('Yêu cầu trống hoặc quá lớn.');
     const request = JSON.parse(text);
     if (!request || typeof request !== 'object' || Array.isArray(request)) throw new Error('Yêu cầu không hợp lệ.');
-    if (request.action === 'studentSessionInfo') {
+    if (['lab2Health', 'lab2Snapshot', 'lab2Call'].includes(request.action)) {
+      result = {ok: true, data: lab2Handle_(request)};
+    } else if (request.action === 'studentCodeSessionInfo') {
+      result = {ok: true, data: handleStudentCodeSession_(request)};
+    } else if (request.action === 'studentCodeCheckIn') {
+      result = {ok: true, data: handleStudentCheckIn_(request, true)};
+    } else if (request.action === 'studentSessionInfo') {
       result = {ok: true, data: handleStudentSession_(request)};
     } else if (request.action === 'studentCheckIn') {
       result = {ok: true, data: handleStudentCheckIn_(request)};
@@ -559,4 +593,13 @@ function doPost(e) {
     result = {ok: false, error: /https?:|tokeninfo|id_token|Exception|Service /i.test(message) ? 'Lỗi máy chủ hoặc kết nối Google. Kiểm tra cấu hình và thử lại.' : message};
   }
   return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function doGet() {
+  return ContentService.createTextOutput(JSON.stringify({
+    ok: true,
+    service: 'FAP Attendance API',
+    checkInMode: 'student-code-v2',
+    message: 'API đang hoạt động. Hãy quét QR từ ứng dụng giảng viên để điểm danh.'
+  })).setMimeType(ContentService.MimeType.JSON);
 }

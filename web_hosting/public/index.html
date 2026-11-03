@@ -1,28 +1,14 @@
 <!doctype html>
-<html lang="vi">
-<head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="referrer" content="no-referrer">
-<title>Điểm danh · FAP Attendance</title>
-<link rel="stylesheet" href="/checkin.css">
-<script src="/config.js" defer></script><script src="/checkin.js" defer></script>
-<script src="https://accounts.google.com/gsi/client" async defer></script>
-</head>
-<body>
-<header><strong><span>FPT</span> Attendance</strong><small>CỔNG ĐIỂM DANH SINH VIÊN</small></header>
-<main><div class="eyebrow">CÓ MẶT ĐỂ HỌC HỎI</div><h1>Chào mừng bạn<br>đến lớp học.</h1><p class="intro">Đăng nhập bằng email trường, kiểm tra buổi học và xác nhận bạn đang có mặt.</p>
-<section class="card" aria-label="Điểm danh">
-<div class="step">01 / XÁC THỰC SINH VIÊN</div>
-<div id="google-button"></div><p id="login-hint">Đang chuẩn bị đăng nhập Google…</p>
-<div id="identity" hidden><h2 id="welcome"></h2><p id="email"></p><button id="switch-account" type="button" class="text-button">Đổi tài khoản</button></div>
-<div id="lesson" hidden><div class="divider"></div><div class="step">02 / BUỔI HỌC CỦA BẠN</div><h2 id="course"></h2><dl><div><dt>Ngày</dt><dd id="date"></dd></div><div><dt>Slot</dt><dd id="slot"></dd></div><div><dt>Thời gian</dt><dd id="time"></dd></div></dl>
-<form id="checkin-form">
-<label class="choice" hidden><input type="checkbox" id="use-secret" disabled> Google + Secret Code</label>
-<div id="secret-field" hidden><label for="secret">Secret Code do giảng viên cung cấp</label><input id="secret" type="text" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="6 chữ số"><small>Giảng viên cần mở Secret Code trước khi sử dụng.</small></div>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Điểm danh · FAP Attendance</title><link rel="stylesheet" href="/checkin.css?v=4"><script src="/config.js" defer></script><script src="https://accounts.google.com/gsi/client" async defer></script><script src="/checkin.js?v=4" defer></script></head>
+<body><header><strong><span>FPT</span> Attendance</strong><small>CỔNG ĐIỂM DANH SINH VIÊN</small></header>
+<main><div class="eyebrow">CÓ MẶT ĐỂ HỌC HỎI</div><h1>Chào mừng bạn<br>đến lớp học.</h1><p class="intro">Đăng nhập Google email trường hoặc nhập MSSV, rồi xác nhận đang có mặt trong lớp.</p>
+<section id="authentication" class="card" hidden><div id="google-button"></div><p id="login-hint" role="status">Đang tải đăng nhập Google…</p><button id="switch-mode" class="text-button" type="button">Dùng MSSV</button><p class="intro">Nếu đăng nhập Google mở trang trắng trong trình quét QR, hãy mở liên kết bằng Chrome hoặc Safari.</p><button id="copy-link" class="text-button" type="button">Sao chép liên kết để mở trong trình duyệt</button><p id="browser-help" role="status"></p></section>
+<section class="card" aria-label="Điểm danh"><div id="lesson" hidden><div class="step">BUỔI HỌC CỦA BẠN</div><h2 id="course"></h2><dl><div><dt>Ngày</dt><dd id="date"></dd></div><div><dt>Slot</dt><dd id="slot"></dd></div><div><dt>Thời gian</dt><dd id="time"></dd></div></dl>
+<div id="identity" hidden><h3 id="welcome"></h3><p id="email"></p><button id="switch-account" class="text-button" type="button">Đổi tài khoản Google</button></div>
+<form id="checkin-form"><div id="code-field"><label for="student-code">Mã số sinh viên</label><input id="student-code" type="text" maxlength="20" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Ví dụ: SE193416" required pattern="[A-Za-z0-9]{5,20}"></div>
+<div id="secret-field" hidden><label for="secret">Secret Code do giảng viên cung cấp</label><input id="secret" type="text" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="6 chữ số"></div>
 <label class="presence"><input type="checkbox" id="presence" required><span>Bạn đang có mặt trong lớp này để điểm danh</span></label>
-<button type="submit" id="submit" disabled>Xác nhận điểm danh <span aria-hidden="true">→</span></button>
-</form></div>
-<p id="message" role="status" aria-live="polite"></p>
+<button type="submit" id="submit" disabled>Xác nhận điểm danh <span aria-hidden="true">→</span></button></form></div>
+<p id="message" role="status" aria-live="polite">Đang tải buổi học…</p><button id="retry" class="text-button" type="button" hidden>Thử tải lại</button>
 <div id="success" hidden><div class="success-icon">✓</div><h2>Điểm danh thành công!</h2><p id="receipt"></p><p>Chúc bạn một buổi học hiệu quả.</p></div>
-</section><footer>FAP Attendance · Thời gian buổi học theo giờ Việt Nam</footer></main>
-</body></html>
+</section><footer>FAP Attendance · Thời gian buổi học theo giờ Việt Nam</footer></main></body></html>

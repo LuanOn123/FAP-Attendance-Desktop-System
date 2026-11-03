@@ -189,8 +189,14 @@ test('enabled secret requires Google and code even with a valid QR', () => {
   assert.throws(() => context.handleStudentCheckIn_({...request, useSecret:true, secretCode:'999999'}), /Secret Code/);
   assert.equal(context.handleStudentCheckIn_({...request, useSecret:true, secretCode:'123456', token:''}).status, 'PRESENT');
 });
+test('accept verified roster email when Workspace hd differs or is absent', () => {
+  for (const hd of ['fe.edu.vn', undefined]) {
+    const {request} = studentFixture({hd});
+    assert.equal(context.handleStudentSession_(request).student.studentCode, 'SE181848');
+  }
+});
 test('reject expired/malformed expiry, wrong audience/domain/unverified/non-enrolled account', () => {
-  for (const overrides of [{aud:'desktop-client'}, {email:'a@gmail.com'}, {email_verified:false}, {hd:undefined}, {exp:1}, {email:'tranvbse180002@fpt.edu.vn'}]) {
+  for (const overrides of [{aud:'desktop-client'}, {email:'a@gmail.com'}, {email_verified:false}, {exp:1}, {email:'tranvbse180002@fpt.edu.vn'}]) {
     const {request} = studentFixture(overrides);
     assert.throws(() => context.handleStudentCheckIn_(request), /trường|danh sách lớp/);
   }
@@ -255,4 +261,29 @@ test('typed Sheets date takes priority over a US-formatted display date', () => 
   assert.equal(result.status,'CLOSED');
   assert.equal(result.tokenExpiredAt,'2026-09-22T02:00:00.000Z');
   assert.equal(sheet.rows.length,2);
+});
+
+test('student-code check-in validates roster, presence and optional secret without Google or rotating token', () => {
+  let {request,book,session} = studentFixture();
+  request = {...request, idToken: undefined, studentCode:' se181848 '};
+  context.UrlFetchApp = {fetch(){ throw new Error('Google must not be called'); }};
+  assert.equal(context.handleStudentCodeSession_({...request,token:'stale'}).checkInMode, 'student-code-v2');
+  assert.equal(context.handleStudentCodeSession_(request).session.secretEnabled, false);
+  assert.throws(()=>context.handleStudentCheckIn_({...request,confirmPresent:false},true), /xác nhận/);
+  assert.throws(()=>context.handleStudentCheckIn_({...request,studentCode:''},true), /MSSV/);
+  assert.throws(()=>context.handleStudentCheckIn_({...request,studentCode:'SE999999'},true), /MSSV/);
+  assert.throws(()=>context.handleStudentCheckIn_({...request,studentCode:'SE180002'},true), /danh sách lớp/);
+  const receipt = context.handleStudentCheckIn_({...request,token:'stale'},true);
+  assert.equal(receipt.studentCode,'SE181848');
+  assert.equal(book.getSheetByName('Attendance').rows[1][6], 'Student code; presence confirmed');
+  assert.throws(()=>context.handleStudentCheckIn_(request,true), /đã điểm danh/);
+  ({request,book,session} = studentFixture());
+  request = {...request,idToken:undefined,studentCode:'SE181848'};
+  context.handleSession_(book,{},teacher,{action:'rotateToken',sessionId:session.sessionId,currentToken:'VALID_QR',currentSecretCode:'123456',tokenExpiredAt:new Date(Date.now()+120000).toISOString()});
+  assert.equal(context.handleStudentCodeSession_(request).session.secretEnabled,true);
+  assert.throws(()=>context.handleStudentCheckIn_(request,true), /Secret/);
+  assert.throws(()=>context.handleStudentCheckIn_({...request,secretCode:'000000'},true), /Secret/);
+  book.getSheetByName('Sessions').rows[1][8] = new Date(Date.now()-1000).toISOString();
+  assert.equal(context.handleStudentCodeSession_(request).checkInMode,'student-code-v2');
+  assert.equal(context.handleStudentCheckIn_({...request,secretCode:'123456'},true).status,'PRESENT');
 });

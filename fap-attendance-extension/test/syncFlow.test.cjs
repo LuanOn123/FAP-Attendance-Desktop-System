@@ -34,23 +34,4 @@ test('desktop preview reads automatically but writes only after teacher click; c
   dom.window.close();
 });
 
-test('student must login and explicitly confirm presence; sends credential without trusting form identity',async()=>{
-  const dom=new JSDOM(read('web_hosting/public/index.html'),{runScripts:'outside-only',url:'https://fap-attendance-cba45.web.app/checkin?sessionId=s1&token=qr1'});
-  const w=dom.window;w.AbortSignal=AbortSignal;let callback;const calls=[];
-  w.FAP_CONFIG={googleWebClientId:'web-client',appsScriptUrl:'https://example.test/exec'};
-  w.google={accounts:{id:{initialize:opts=>{callback=opts.callback},renderButton(){},disableAutoSelect(){}}}};
-  w.fetch=async(url,options)=>{const req=JSON.parse(options.body);calls.push(req);return {ok:true,json:async()=>({ok:true,data:req.action==='studentSessionInfo'?{student:{studentCode:'SE123456',fullName:'Student A',email:'a@fpt.edu.vn'},session:{subjectCode:'PRN232',classCode:'SE1917',date:'2026-09-22',slot:1,startTime:'07:00',endTime:'09:15',secretEnabled:false}}:{fullName:'Student A',checkInTime:'2026-09-22T00:30:00Z'}})}};
-  w.eval(read('web_hosting/public/checkin.js'));
-  await new Promise(resolve=>setTimeout(resolve,180));
-  assert.equal(w.document.getElementById('submit').disabled,true);
-  await callback({credential:'google-id-token'});await flush();
-  assert.match(w.document.getElementById('welcome').textContent,/Student A/);
-  const form=w.document.getElementById('checkin-form');
-  form.dispatchEvent(new w.Event('submit',{cancelable:true}));await flush();assert.equal(calls.length,1);
-  const presence=w.document.getElementById('presence');presence.checked=true;presence.dispatchEvent(new w.Event('change'));
-  assert.equal(w.document.getElementById('submit').disabled,false);
-  form.dispatchEvent(new w.Event('submit',{cancelable:true}));await flush();
-  assert.equal(calls[1].confirmPresent,true);assert.equal(calls[1].useSecret,false);assert.equal(calls[1].idToken,'google-id-token');assert.equal(calls[1].studentCode,undefined);
-  assert.equal(w.document.getElementById('success').hidden,false);
-  dom.window.close();
-});
+

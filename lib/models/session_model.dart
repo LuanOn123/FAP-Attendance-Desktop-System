@@ -10,6 +10,8 @@ class SessionModel {
   final String currentSecretCode;
   final String tokenExpiredAt;
   final String createdBy;
+  final int? opensAt, closesAt;
+  final double? effectiveDurationMinutes;
 
   const SessionModel({
     required this.sessionId,
@@ -23,6 +25,9 @@ class SessionModel {
     this.currentSecretCode = '',
     required this.tokenExpiredAt,
     required this.createdBy,
+    this.opensAt,
+    this.closesAt,
+    this.effectiveDurationMinutes,
   });
 
   bool get isOpen => status.toUpperCase() == 'OPEN';
@@ -44,6 +49,11 @@ class SessionModel {
               : ''),
       tokenExpiredAt: json['tokenExpiredAt']?.toString() ?? '',
       createdBy: json['createdBy']?.toString() ?? '',
+      opensAt: int.tryParse('${json['opensAt']}'),
+      closesAt: int.tryParse('${json['closesAt']}'),
+      effectiveDurationMinutes: double.tryParse(
+        '${json['effectiveDurationMinutes']}',
+      ),
     );
   }
 
@@ -68,6 +78,10 @@ class SessionModel {
     'currentSecretCode': currentSecretCode,
     'tokenExpiredAt': tokenExpiredAt,
     'createdBy': createdBy,
+    if (opensAt != null) 'opensAt': opensAt,
+    if (closesAt != null) 'closesAt': closesAt,
+    if (effectiveDurationMinutes != null)
+      'effectiveDurationMinutes': effectiveDurationMinutes,
   };
 
   SessionModel copyWith({
@@ -88,6 +102,9 @@ class SessionModel {
       currentSecretCode: currentSecretCode ?? this.currentSecretCode,
       tokenExpiredAt: tokenExpiredAt ?? this.tokenExpiredAt,
       createdBy: createdBy,
+      opensAt: opensAt,
+      closesAt: closesAt,
+      effectiveDurationMinutes: effectiveDurationMinutes,
     );
   }
 }

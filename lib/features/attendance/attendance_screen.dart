@@ -16,6 +16,8 @@ import '../../services/class_mapping_service.dart';
 import 'session_qr_widget.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../services/student_checkin_url.dart';
+import '../../repositories/student_portal_repository.dart';
+import '../student_portal/leave_request_panel.dart';
 
 class AttendanceScreen extends StatefulWidget {
   final Lecturer lecturer;
@@ -28,6 +30,8 @@ class AttendanceScreen extends StatefulWidget {
   final void Function(Schedule schedule, SessionModel session)? onOpenReport;
   final int importRevision;
   final DateTime Function()? clock;
+  final StudentPortalRepository? portalRepository;
+  final VoidCallback? onOpenDailyAttendance;
 
   const AttendanceScreen({
     super.key,
@@ -41,6 +45,8 @@ class AttendanceScreen extends StatefulWidget {
     this.onOpenReport,
     this.importRevision = 0,
     this.clock,
+    this.portalRepository,
+    this.onOpenDailyAttendance,
   });
 
   @override
@@ -154,11 +160,17 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   Future<void> _fetchAttendanceList() async {
     if (activeSession == null) return;
     final sessionId = activeSession!.sessionId;
+    final classId = activeSession!.classId;
     try {
+      final sessions = await widget.repository.getSessionsByClass(classId);
+      final refreshed = sessions
+          .where((s) => s.sessionId == sessionId)
+          .toList();
       final records = await widget.repository.getSessionAttendance(sessionId);
       if (mounted && activeSession?.sessionId == sessionId) {
         setState(() {
           attendanceRecords = records;
+          if (refreshed.length == 1) activeSession = refreshed.single;
         });
       }
     } catch (_) {}
@@ -218,7 +230,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               endTime: schedule.endTime,
               lecturerId: widget.lecturer.lecturerId,
             );
-      if (sameSession.isNotEmpty && session.isOpen) {
+      final expiresAtValue = DateTime.tryParse(session.tokenExpiredAt)?.toUtc();
+      if (sameSession.isNotEmpty &&
+          session.isOpen &&
+          (expiresAtValue == null ||
+              !expiresAtValue.isAfter(DateTime.now().toUtc()))) {
         final now = DateTime.now();
         final token = List.generate(
           24,
@@ -229,10 +245,14 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             : (session.currentToken.contains('#')
                   ? session.currentToken.split('#').last
                   : '');
-        final expiresAt = now
-            .toUtc()
-            .add(const Duration(seconds: 120))
-            .toIso8601String();
+        final requestedExpiry = now.toUtc().add(attendanceTokenLifetime);
+        final deadline = session.closesAt;
+        final expiresAt =
+            (deadline != null &&
+                        deadline < requestedExpiry.millisecondsSinceEpoch
+                    ? DateTime.fromMillisecondsSinceEpoch(deadline, isUtc: true)
+                    : requestedExpiry)
+                .toIso8601String();
         await widget.repository.rotateSessionToken(
           sessionId: session.sessionId,
           newToken: token,
@@ -446,6 +466,17 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               style: TextStyle(color: Colors.black54, fontSize: 15),
             ),
             const SizedBox(height: 20),
+            if (widget.onOpenDailyAttendance != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: OutlinedButton.icon(
+                  onPressed: widget.onOpenDailyAttendance,
+                  icon: const Icon(Icons.fact_check_outlined),
+                  label: const Text(
+                    'Điểm danh nhanh trong ngày (đến trước 00:00)',
+                  ),
+                ),
+              ),
             if (errorMessage != null)
               Container(
                 margin: const EdgeInsets.only(bottom: 16),
@@ -689,6 +720,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                         fontSize: 14,
                       ),
                     ),
+                    if (session.effectiveDurationMinutes != null)
+                      Text(
+                        'Thời lượng hiệu lực: ${session.effectiveDurationMinutes!.toStringAsFixed(1)} phút • Hạn phiên do máy chủ quản lý',
+                      ),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -722,6 +757,16 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                       icon: const Icon(Icons.list),
                       label: const Text('Danh sách buổi học'),
                     ),
+                    if (widget.onOpenDailyAttendance != null)
+                      OutlinedButton.icon(
+                        onPressed: isClosing
+                            ? null
+                            : widget.onOpenDailyAttendance,
+                        icon: const Icon(Icons.fact_check_outlined),
+                        label: const Text(
+                          'Điểm danh nhanh / Điều chỉnh trong ngày',
+                        ),
+                      ),
                     OutlinedButton.icon(
                       onPressed: isStarting || isClosing ? null : _resetSession,
                       icon: const Icon(Icons.restart_alt),
@@ -764,6 +809,17 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             const SizedBox(height: 24),
 
             // Main Content: Left QR Display, Right Live Attendance Table
+            if (widget.portalRepository != null)
+              LeaveRequestPanel(
+                key: ValueKey('leave-${session.sessionId}'),
+                repository: widget.portalRepository!,
+                classId: session.classId,
+                sessionDate: session.date,
+                slot: session.slot,
+                sessionId: session.sessionId,
+                sessionClosed: !session.isOpen,
+                onAttendanceChanged: _fetchAttendanceList,
+              ),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -779,10 +835,20 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                               ? session.currentToken.split('#').last
                               : ''),
                     onRotateToken: (newToken, newSecret) async {
-                      final expiresAt = DateTime.now()
-                          .toUtc()
-                          .add(const Duration(seconds: 120))
-                          .toIso8601String();
+                      final requestedExpiry = DateTime.now().toUtc().add(
+                        attendanceTokenLifetime,
+                      );
+                      final deadline = session.closesAt;
+                      final expiresAt =
+                          (deadline != null &&
+                                      deadline <
+                                          requestedExpiry.millisecondsSinceEpoch
+                                  ? DateTime.fromMillisecondsSinceEpoch(
+                                      deadline,
+                                      isUtc: true,
+                                    )
+                                  : requestedExpiry)
+                              .toIso8601String();
                       await widget.repository.rotateSessionToken(
                         sessionId: session.sessionId,
                         newToken: newToken,

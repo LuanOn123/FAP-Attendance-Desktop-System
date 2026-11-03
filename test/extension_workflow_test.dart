@@ -124,8 +124,14 @@ void main() {
       expect(find.text('Le Thi B'), findsOneWidget);
       await tester.runAsync(() async {
         await tester.tap(find.text('Xuất Excel (.xlsx)'));
-        for (var i = 0; i < 100 && !target.existsSync(); i++) {
+        // File existence precedes write/flush completion on Windows.
+        for (var i = 0; i < 250; i++) {
           await Future<void>.delayed(const Duration(milliseconds: 20));
+          await tester.pump();
+          if (target.existsSync() &&
+              find.text('Đang xuất...').evaluate().isEmpty) {
+            break;
+          }
         }
       });
       await tester.pumpAndSettle();

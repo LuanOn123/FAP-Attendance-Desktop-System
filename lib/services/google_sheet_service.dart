@@ -47,7 +47,7 @@ class GoogleSheetService {
     }
     dynamic data;
     try {
-      data = jsonDecode(response.body);
+      data = jsonDecode(utf8.decode(response.bodyBytes));
     } catch (_) {
       throw const AppException(
         'API không trả JSON. Kiểm tra quyền truy cập và deployment Apps Script.',

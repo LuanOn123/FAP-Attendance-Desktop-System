@@ -27,6 +27,8 @@ Các thay đổi local phải được cập nhật đồng bộ; không chỉ t
 
 ## Kiểm tra thực tế sau triển khai
 
+- Khi quét QR, mở link bằng Chrome trên Android hoặc Safari trên iPhone. Google Identity Services không hỗ trợ trình duyệt nhúng trong Zalo/Facebook; trang sẽ hiện hướng dẫn mở trình duyệt ngoài. Chrome mới dùng FedCM để tránh cửa sổ đăng nhập trắng.
+
 - Roster cần email Google trường đúng cho từng MSSV, không để trống. Tài khoản không thuộc lớp phải bị từ chối.
 - Vào slot hiện tại, quét QR bằng điện thoại, đăng nhập: đúng tên, lớp, ngày, giờ; chưa tích checkbox không được gửi. Có thể điểm danh không nhập Secret Code.
 - Bật Secret Code trên desktop, quét QR mới và đăng nhập Google: phải nhập thêm mã Secret. Gửi QR mà thiếu/sai mã phải bị từ chối. Tắt Secret Code và quét QR mới: không hiện ô mã. Khi giảng viên đổi chế độ trong lúc trang đang mở, quét lại QR để tải trạng thái mới.
