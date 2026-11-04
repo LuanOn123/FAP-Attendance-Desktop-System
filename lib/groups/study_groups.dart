@@ -4,6 +4,7 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'group_signup_panel.dart';
 
 typedef GroupCall =
     Future<dynamic> Function(String method, Map<String, dynamic> data);
@@ -34,6 +35,7 @@ class _StudyGroupsState extends State<StudyGroups> {
   Timer? timer;
   int generation = 0;
   bool firstMessages = true;
+  bool signupLocked = false;
   @override
   void initState() {
     super.initState();
@@ -196,6 +198,31 @@ class _StudyGroupsState extends State<StudyGroups> {
     children: [
       Text('Nhóm học tập', style: Theme.of(context).textTheme.headlineSmall),
       const Text('Chia nhóm, trao đổi và chia sẻ tài liệu trong lớp.'),
+      if (plan != null)
+        GroupSignupPanel(
+          key: ValueKey('signup/${widget.classId}'),
+          call: widget.call,
+          classId: widget.classId,
+          version: plan!['version'] as int,
+          groupCount: count,
+          existingGroupCount: groups.length,
+          disabled:
+              busy ||
+              dirty ||
+              pending != null ||
+              text.text.isNotEmpty ||
+              attachment != null,
+          hasUnsavedChanges: () =>
+              busy ||
+              dirty ||
+              pending != null ||
+              text.text.isNotEmpty ||
+              attachment != null,
+          onChanged: load,
+          onLockChanged: (value) {
+            if (mounted) setState(() => signupLocked = value);
+          },
+        ),
       if (error != null)
         Padding(
           padding: const EdgeInsets.all(12),
@@ -218,15 +245,21 @@ class _StudyGroupsState extends State<StudyGroups> {
                 50,
                 (i) => DropdownMenuItem(value: i + 1, child: Text('${i + 1}')),
               ),
-              onChanged: busy ? null : (v) => setState(() => count = v!),
+              onChanged: busy || signupLocked
+                  ? null
+                  : (v) => setState(() => count = v!),
             ),
           ),
           OutlinedButton(
-            onPressed: busy || plan == null || pending != null ? null : divide,
+            onPressed: busy || signupLocked || plan == null || pending != null
+                ? null
+                : divide,
             child: const Text('Chia ngẫu nhiên'),
           ),
           FilledButton(
-            onPressed: busy || !dirty ? null : () => action(save),
+            onPressed: busy || signupLocked || !dirty
+                ? null
+                : () => action(save),
             child: const Text('Lưu cách chia nhóm'),
           ),
           TextButton(
@@ -270,7 +303,7 @@ class _StudyGroupsState extends State<StudyGroups> {
                   initialValue: g['name'],
                   maxLength: 80,
                   decoration: const InputDecoration(labelText: 'Tên nhóm'),
-                  enabled: !busy && pending == null,
+                  enabled: !busy && !signupLocked && pending == null,
                   onChanged: (v) => setState(() {
                     g['name'] = v;
                     dirty = true;
@@ -293,7 +326,7 @@ class _StudyGroupsState extends State<StudyGroups> {
                           ),
                         )
                         .toList(),
-                    onChanged: busy || pending != null
+                    onChanged: busy || signupLocked || pending != null
                         ? null
                         : (id) => setState(() {
                             for (final x in groups) {
@@ -340,7 +373,7 @@ class _StudyGroupsState extends State<StudyGroups> {
                     ),
                   )
                   .toList(),
-              onChanged: busy
+              onChanged: busy || signupLocked
                   ? null
                   : (id) => setState(() {
                       (groups.firstWhere((g) => g['id'] == id)['memberIds']
@@ -416,6 +449,7 @@ class _StudyGroupsState extends State<StudyGroups> {
           ),
         TextField(
           controller: text,
+          onChanged: (_) => setState(() {}),
           enabled: !busy && pending == null,
           maxLength: 2000,
           minLines: 1,
