@@ -1,5 +1,7 @@
 # FAP Attendance Desktop — Member 1
 
+> **Nhập điểm Excel:** mục Điểm số hỗ trợ tải mẫu `.xlsx`, ghép MSSV/cột điểm, kiểm tra và xem trước trước khi đưa vào bản nháp. Lưu nháp và công bố cho Student Web là hai bước riêng. Xem [hướng dẫn nhập điểm Excel](EXCEL_GRADE_IMPORT.md).
+
 > **30/10/2026 — Điểm danh nhanh đồng bộ mobile:** đã thêm luồng mặc định Có mặt, chọn ngoại lệ Vắng, xem trước/xác nhận và điều chỉnh đến trước 00:00 ngày hôm sau. Có nhắc Windows khi app đang chạy và đồng bộ buổi đã chốt trên mobile. Xem [hướng dẫn backend và cách dùng](docs/DESKTOP_MOBILE_DAILY_ATTENDANCE.md).
 
 > **Nâng cấp cổng sinh viên:** đã thêm menu Xin nghỉ, Điểm số và danh sách đơn ngay tại phiên điểm danh. Backend mới nằm ở `C:/PRM/lecture_mobile/backend/apps_script/StudentPortal.gs`; hướng dẫn khởi tạo, cấu hình và chuyển điểm tại `C:/PRM/fu-grade-web/IMPLEMENTATION.md`. Cần cập nhật backend chung và build lại desktop để sử dụng thật.

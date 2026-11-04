@@ -4,6 +4,9 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import '../../services/portal_grade_import.dart';
+import '../../services/grade_excel_import.dart';
+import '../../services/excel_export_service.dart';
+import 'excel_grade_import_dialog.dart';
 import '../../core/app_config.dart';
 import '../../repositories/student_portal_repository.dart';
 import 'leave_request_panel.dart';
@@ -76,6 +79,7 @@ class _StudentPortalScreenState extends State<StudentPortalScreen> {
   }
 
   Future<void> run(Future<void> Function() action) async {
+    if (busy) return;
     setState(() {
       busy = true;
       error = null;
@@ -240,6 +244,96 @@ class _StudentPortalScreenState extends State<StudentPortalScreen> {
           bookRevision++;
           publishKey = null;
         });
+      }
+    });
+  }
+
+  Future<void> importExcelGrades() async {
+    if (busy || book == null || classId == null) return;
+    await run(() async {
+      final selection = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['xlsx'],
+      );
+      if (selection == null || !mounted) return;
+      final path = selection.files.single.path;
+      if (path == null) {
+        throw const AppException('Không đọc được đường dẫn file Excel.');
+      }
+      final sheets = await GradeExcelReader.read(path);
+      if (!mounted) return;
+      final imported = await showDialog<PortalRow>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => ExcelGradeImportDialog(
+          sheets: sheets,
+          target: classes.singleWhere((c) => c['classId'] == classId),
+          current: book!,
+          fileName: selection.files.single.name,
+        ),
+      );
+      if (imported != null && mounted) {
+        setState(() {
+          book = imported;
+          dirty = true;
+          bookRevision++;
+          publishKey = null;
+        });
+      }
+    });
+  }
+
+  Future<void> exportExcelTemplate() async {
+    if (busy || book == null || classId == null) return;
+    await run(() async {
+      final target = classes.singleWhere((c) => c['classId'] == classId);
+      final columns = components.isEmpty
+          ? <PortalRow>[
+              {'id': 'new_grade', 'name': 'Điểm', 'maxScore': 10},
+            ]
+          : components;
+      final bytes = ExcelExportService.generateXlsx(
+        sheetName: 'Điểm',
+        headers: [
+          'Học kỳ',
+          'Mã môn',
+          'Mã lớp',
+          'MSSV',
+          'Họ tên',
+          ...columns.map((c) => '${c['name']}'),
+          'Nhận xét',
+        ],
+        rows: students
+            .map(
+              (s) => [
+                '${target['semester']}',
+                '${target['subjectCode']}',
+                '${target['classCode']}',
+                '${s['studentCode']}',
+                '${s['fullName']}',
+                ...columns.map((c) => '${(s['grades'] as Map)[c['id']] ?? ''}'),
+                '${s['comment'] ?? ''}',
+              ],
+            )
+            .toList(),
+      );
+      final name =
+          'diem-${target['subjectCode']}-${target['classCode']}-${target['semester']}'
+              .replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
+      final path = await FilePicker.platform.saveFile(
+        dialogTitle: 'Lưu file mẫu nhập điểm',
+        fileName: '$name.xlsx',
+        type: FileType.custom,
+        allowedExtensions: ['xlsx'],
+      );
+      if (path == null) return;
+      await File(path).writeAsBytes(bytes);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đã lưu file mẫu Excel theo lớp đang chọn.'),
+          ),
+        );
       }
     });
   }
@@ -449,6 +543,16 @@ class _StudentPortalScreenState extends State<StudentPortalScreen> {
               FilledButton(
                 onPressed: busy || !dirty || components.isEmpty ? null : save,
                 child: const Text('Lưu bản nháp'),
+              ),
+              OutlinedButton.icon(
+                onPressed: busy ? null : importExcelGrades,
+                icon: const Icon(Icons.table_chart_outlined),
+                label: const Text('Nhập điểm từ Excel'),
+              ),
+              OutlinedButton.icon(
+                onPressed: busy ? null : exportExcelTemplate,
+                icon: const Icon(Icons.download_outlined),
+                label: const Text('Tải file mẫu Excel'),
               ),
               OutlinedButton.icon(
                 onPressed: busy ? null : importGrades,
