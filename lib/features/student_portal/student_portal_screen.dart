@@ -10,6 +10,7 @@ import 'excel_grade_import_dialog.dart';
 import '../../core/app_config.dart';
 import '../../repositories/student_portal_repository.dart';
 import 'leave_request_panel.dart';
+import '../../grade_forecast/grade_forecast_page.dart';
 
 class StudentPortalScreen extends StatefulWidget {
   final StudentPortalRepository repository;
@@ -553,6 +554,25 @@ class _StudentPortalScreenState extends State<StudentPortalScreen> {
                 onPressed: busy ? null : exportExcelTemplate,
                 icon: const Icon(Icons.download_outlined),
                 label: const Text('Tải file mẫu Excel'),
+              ),
+              OutlinedButton.icon(
+                onPressed: busy
+                    ? null
+                    : () {
+                        final target = classes.singleWhere(
+                          (c) => c['classId'] == classId,
+                        );
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => GradeForecastPage(
+                              contextLabel:
+                                  '${target['semester']} · ${target['subjectCode']} · ${target['classCode']}',
+                            ),
+                          ),
+                        );
+                      },
+                icon: const Icon(Icons.calculate_outlined),
+                label: const Text('Tính điểm FE/PE'),
               ),
               OutlinedButton.icon(
                 onPressed: busy ? null : importGrades,

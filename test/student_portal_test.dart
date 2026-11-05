@@ -38,6 +38,46 @@ class LeaveFixture extends StudentPortalRepository {
 }
 
 void main() {
+  testWidgets(
+    'lecturer forecast opens without losing unsaved grades or publishing',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1400, 1000));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final repo = DemoStudentPortalRepository();
+      repo.state['components'] = <PortalRow>[
+        {'id': 'quiz', 'name': 'Quiz', 'maxScore': 10},
+      ];
+      repo.state['students'][0]['grades'] = {'quiz': 5};
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: StudentPortalScreen(repository: repo)),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextFormField).first, '8');
+      await tester.tap(find.text('Tính điểm FE/PE'));
+      await tester.pumpAndSettle();
+      expect(find.text('Tư vấn điểm cần đạt'), findsOneWidget);
+      expect(find.text('FA26 · PRM393 · SE1848'), findsOneWidget);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(
+        tester
+                .widget<TextFormField>(find.byType(TextFormField).first)
+                .controller
+                ?.text ??
+            tester
+                .widget<TextFormField>(find.byType(TextFormField).first)
+                .initialValue,
+        '8',
+      );
+      expect(repo.state['students'][0]['grades']['quiz'], 5);
+      expect(repo.state['version'], 0);
+      expect(repo.state['activePublicationId'], '');
+      expect(find.textContaining('Có thay đổi chưa lưu'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
   test('desktop sends OAuth identity through shared portal envelope', () async {
     final service = GoogleSheetService(
       endpoint: Uri.parse('https://script.google.com/macros/s/test/exec'),
