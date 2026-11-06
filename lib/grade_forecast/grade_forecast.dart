@@ -1,12 +1,13 @@
 /// Same calculation contract as Student Web: total strictly > 5, scores /10,
 /// weights sum to 100%, recommendations on a 0.1 grid. No network or persistence.
 class ForecastColumn {
-  final String name, kind, weight, score;
+  final String name, kind, weight, score, minimum;
   const ForecastColumn({
     required this.name,
     this.kind = 'known',
     required this.weight,
     this.score = '',
+    this.minimum = '0',
   });
 }
 
@@ -30,7 +31,8 @@ enum ForecastStatus { invalid, single, pair, impossible, passed, failed }
 class ForecastScenario {
   final int pe;
   final double? fe, total;
-  const ForecastScenario(this.pe, this.fe, this.total);
+  final String? reason;
+  const ForecastScenario(this.pe, this.fe, this.total, [this.reason]);
 }
 
 class ForecastResult {
@@ -56,7 +58,7 @@ class ForecastResult {
 ForecastResult forecastGrades(List<ForecastColumn> rows) {
   const scale = 1000000, pass = 5000000;
   final errors = <String>[], examTypes = <String>{};
-  final weights = <int>[], scores = <int?>[];
+  final weights = <int>[], scores = <int?>[], minima = <int>[];
   if (rows.isEmpty || rows.length > 30) {
     return const ForecastResult(
       status: ForecastStatus.invalid,
@@ -67,6 +69,7 @@ ForecastResult forecastGrades(List<ForecastColumn> rows) {
     final row = rows[i], label = 'Cột ${i + 1}';
     final weight = forecastHundredths(row.weight), text = row.score.trim();
     final score = text.isEmpty ? null : forecastHundredths(text);
+    final minimum = forecastHundredths(row.minimum);
     if (!['known', 'FE', 'PE'].contains(row.kind)) {
       errors.add('$label: chọn loại điểm hợp lệ.');
     }
@@ -83,12 +86,20 @@ ForecastResult forecastGrades(List<ForecastColumn> rows) {
       errors.add('$label: nhập điểm đã có; chỉ FE/PE được để trống để tính.');
     }
     if (row.kind == 'FE' || row.kind == 'PE') {
+      if (minimum == null || minimum < 0 || minimum > 1000) {
+        errors.add('$label: điểm tối thiểu ${row.kind} phải từ 0 đến 10.');
+      } else if (score != null && score < minimum) {
+        errors.add(
+          '${row.kind} đang dưới ngưỡng ${forecastNumber(minimum / 100)} theo đề cương đã nhập. Xóa điểm bài thi để tính mức cần đạt.',
+        );
+      }
       if (!examTypes.add(row.kind)) {
         errors.add('Chỉ được có một cột ${row.kind}.');
       }
     }
     weights.add(weight ?? 0);
     scores.add(score);
+    minima.add(minimum ?? 0);
   }
   final totalWeight = weights.fold<int>(0, (sum, w) => sum + w);
   if (totalWeight != 10000) {
@@ -122,15 +133,18 @@ ForecastResult forecastGrades(List<ForecastColumn> rows) {
       maximum: maximum / scale,
     );
   }
-  int? minimumTenth(int extraBase, int weight) {
+  int? minimumTenth(int extraBase, int weight, [int floor = 0]) {
     for (var tenth = 0; tenth <= 100; tenth++) {
-      if (extraBase + tenth * 10 * weight > pass) return tenth;
+      if (tenth * 10 >= floor && extraBase + tenth * 10 * weight > pass) {
+        return tenth;
+      }
     }
     return null;
   }
 
   if (unknown.length == 1) {
-    final i = unknown.single, needed = minimumTenth(base, weights[i])!;
+    final i = unknown.single,
+        needed = minimumTenth(base, weights[i], minima[i])!;
     return ForecastResult(
       status: ForecastStatus.single,
       current: base / scale,
@@ -142,10 +156,17 @@ ForecastResult forecastGrades(List<ForecastColumn> rows) {
   }
   final fe = unknown.singleWhere((i) => rows[i].kind == 'FE'),
       pe = unknown.singleWhere((i) => rows[i].kind == 'PE');
-  final same = minimumTenth(base, weights[fe] + weights[pe])!;
+  final same = minimumTenth(
+    base,
+    weights[fe] + weights[pe],
+    minima[fe] > minima[pe] ? minima[fe] : minima[pe],
+  )!;
   final scenarios = List.generate(11, (peScore) {
+    if (peScore * 100 < minima[pe]) {
+      return ForecastScenario(peScore, null, null, 'PE dưới ngưỡng đã nhập');
+    }
     final extra = base + peScore * 100 * weights[pe],
-        feTenth = minimumTenth(extra, weights[fe]);
+        feTenth = minimumTenth(extra, weights[fe], minima[fe]);
     return ForecastScenario(
       peScore,
       feTenth == null ? null : feTenth / 10,

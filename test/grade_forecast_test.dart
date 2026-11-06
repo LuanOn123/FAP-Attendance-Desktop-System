@@ -7,6 +7,62 @@ ForecastColumn exam(String kind, String weight, [String score = '']) =>
     ForecastColumn(name: kind, kind: kind, weight: weight, score: score);
 void main() {
   test(
+    'syllabus exam floors constrain single and paired forecasts without inventing a default',
+    () {
+      const fe = ForecastColumn(
+        name: 'FE',
+        kind: 'FE',
+        weight: '40',
+        minimum: '4,05',
+      );
+      expect(forecastGrades([known('9', '60'), fe]).needed, 4.1);
+      expect(
+        forecastGrades([
+          known('9', '60'),
+          const ForecastColumn(
+            name: 'FE',
+            kind: 'FE',
+            weight: '40',
+            score: '3',
+            minimum: '4',
+          ),
+        ]).status,
+        ForecastStatus.invalid,
+      );
+      final pair = forecastGrades([
+        known('9', '60'),
+        const ForecastColumn(
+          name: 'FE',
+          kind: 'FE',
+          weight: '20',
+          minimum: '6.02',
+        ),
+        const ForecastColumn(
+          name: 'PE',
+          kind: 'PE',
+          weight: '20',
+          minimum: '4.05',
+        ),
+      ]);
+      expect(pair.sameScore, 6.1);
+      expect(pair.scenarios[4].fe, isNull);
+      expect(pair.scenarios[4].reason, contains('dưới ngưỡng'));
+      expect(pair.scenarios[5].fe, 6.1);
+      expect(
+        forecastGrades([
+          known('9', '60'),
+          const ForecastColumn(
+            name: 'FE',
+            kind: 'FE',
+            weight: '40',
+            minimum: '11',
+          ),
+        ]).status,
+        ForecastStatus.invalid,
+      );
+    },
+  );
+  test(
     'strictly greater than five; smallest passing tenth rather than equality',
     () {
       final r = forecastGrades([known('5', '60'), exam('FE', '40')]);
