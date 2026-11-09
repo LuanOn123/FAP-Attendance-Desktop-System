@@ -19,6 +19,7 @@ class SheetStudentPortalRepository implements StudentPortalRepository {
         'data': data,
       });
     } on AppException catch (e) {
+      if (method == 'createGroupTask') rethrow;
       const messages = {
         'VERSION_CONFLICT': 'Dữ liệu đã thay đổi. Tải lại trước khi lưu.',
         'OCCURRENCE_CHANGED':

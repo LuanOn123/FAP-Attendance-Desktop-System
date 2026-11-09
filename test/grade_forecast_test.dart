@@ -6,6 +6,22 @@ ForecastColumn known(String score, String weight) =>
 ForecastColumn exam(String kind, String weight, [String score = '']) =>
     ForecastColumn(name: kind, kind: kind, weight: weight, score: score);
 void main() {
+  test('combines FE and PE floors with the strict overall target', () {
+    final result = forecastGrades([
+      known('10', '50'),
+      const ForecastColumn(
+        name: 'FE',
+        kind: 'FE',
+        weight: '25',
+        minimum: '4,55',
+      ),
+      const ForecastColumn(name: 'PE', kind: 'PE', weight: '25', minimum: '6'),
+    ]);
+    expect(result.status, ForecastStatus.pair);
+    expect(result.sameScore, 6);
+    expect(result.scenarios[5].fe, isNull);
+    expect(result.scenarios[6].fe, 4.6);
+  });
   test(
     'strictly greater than five; smallest passing tenth rather than equality',
     () {

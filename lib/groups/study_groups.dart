@@ -5,16 +5,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'group_signup_panel.dart';
-
-typedef GroupCall =
-    Future<dynamic> Function(String method, Map<String, dynamic> data);
-String groupRequestKey() {
-  final r = Random.secure();
-  return List.generate(
-    24,
-    (_) => r.nextInt(256).toRadixString(16).padLeft(2, '0'),
-  ).join();
-}
+import 'group_api.dart';
+import 'group_tasks.dart';
 
 class StudyGroups extends StatefulWidget {
   final GroupCall call;
@@ -385,6 +377,27 @@ class _StudyGroupsState extends State<StudyGroups> {
           ),
       ],
       if (groups.isNotEmpty) ...[
+        FilledButton.icon(
+          icon: const Icon(Icons.assignment_outlined),
+          label: const Text('Giao việc cho nhóm'),
+          onPressed: busy || dirty || pending != null || selected == null
+              ? null
+              : () {
+                  final group = groups.firstWhere((g) => g['id'] == selected);
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => GroupTasksPage(
+                        call: widget.call,
+                        classId: widget.classId,
+                        groupId: group['id'],
+                        groupName: group['name'],
+                        memberCount: (group['memberIds'] as List).length,
+                        version: plan!['version'] as int,
+                      ),
+                    ),
+                  );
+                },
+        ),
         DropdownButtonFormField<String>(
           key: ValueKey(selected),
           initialValue: selected,

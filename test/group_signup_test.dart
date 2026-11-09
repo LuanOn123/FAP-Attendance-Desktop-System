@@ -1,9 +1,85 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fap_attendance/groups/group_signup_panel.dart';
+import 'package:fap_attendance/groups/group_tasks.dart';
 import 'package:fap_attendance/groups/study_groups.dart';
 
 void main() {
+  testWidgets(
+    'opens tasks for the saved group and reads its shared inbox status',
+    (tester) async {
+      final reads = <Map<String, dynamic>>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: StudyGroups(
+              classId: 'c1',
+              call: (method, data) async {
+                switch (method) {
+                  case 'getGroupPlan':
+                    return {
+                      'version': 3,
+                      'groups': [
+                        {
+                          'id': 'g1',
+                          'name': 'Nhóm 1',
+                          'memberIds': ['s1'],
+                        },
+                      ],
+                      'students': [
+                        {
+                          'studentId': 's1',
+                          'studentCode': 'SE1',
+                          'fullName': 'One',
+                        },
+                      ],
+                    };
+                  case 'getGroupMessages':
+                    return {'messages': [], 'older': null};
+                  case 'getGroupSignupSheet':
+                    return {'state': 'NONE', 'currentPlanVersion': 3};
+                  case 'listGroupTasks':
+                    reads.add(Map.of(data));
+                    return {
+                      'tasks': [
+                        {
+                          'title': 'Đọc yêu cầu PRM',
+                          'description': 'Chuẩn bị bản demo',
+                          'dueAt': '2026-11-10T03:00:00.000Z',
+                          'readCount': 1,
+                          'recipientCount': 1,
+                          'emailSentCount': 0,
+                        },
+                      ],
+                    };
+                  default:
+                    throw StateError('Unexpected method: $method');
+                }
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Giao việc cho nhóm'));
+      await tester.tap(find.text('Giao việc cho nhóm'));
+      await tester.pumpAndSettle();
+      expect(reads, [
+        {'classId': 'c1', 'groupId': 'g1'},
+      ]);
+      await tester.scrollUntilVisible(
+        find.text('Đọc yêu cầu PRM'),
+        150,
+        scrollable: find.descendant(
+          of: find.byType(GroupTasksPage),
+          matching: find.byType(Scrollable),
+        ).first,
+      );
+      expect(find.text('Đã đọc 1/1 · Email đã gửi 0/1'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
   testWidgets(
     'creating a sheet requires confirmation and retries the same registered request',
     (tester) async {

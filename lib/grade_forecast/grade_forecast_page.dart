@@ -4,22 +4,25 @@ import 'grade_forecast.dart';
 class _Entry {
   final int id;
   final String kind;
-  final TextEditingController name, weight, score;
+  final TextEditingController name, weight, score, minimum;
   _Entry(this.id, ForecastColumn column)
     : kind = column.kind,
       name = TextEditingController(text: column.name),
       weight = TextEditingController(text: column.weight),
-      score = TextEditingController(text: column.score);
+      score = TextEditingController(text: column.score),
+      minimum = TextEditingController(text: column.minimum);
   ForecastColumn get value => ForecastColumn(
     name: name.text,
     kind: kind,
     weight: weight.text,
     score: score.text,
+    minimum: minimum.text,
   );
   void dispose() {
     name.dispose();
     weight.dispose();
     score.dispose();
+    minimum.dispose();
   }
 }
 
@@ -167,7 +170,7 @@ class _GradeForecastPageState extends State<GradeForecastPage> {
                 if (result != null) resultCard(result!),
                 const SizedBox(height: 16),
                 const Text(
-                  'Ước tính chỉ xét tổng > 5. Kiểm tra thêm điểm liệt FE/PE, chuyên cần và điều kiện riêng của môn trong syllabus.',
+                  'Xét tổng > 5 và ngưỡng FE/PE theo đề cương đã nhập. Chuyên cần và điều kiện khác cần kiểm tra riêng trong syllabus.',
                 ),
                 const ExpansionTile(
                   title: Text('Công thức & điều kiện'),
@@ -175,7 +178,7 @@ class _GradeForecastPageState extends State<GradeForecastPage> {
                     Padding(
                       padding: EdgeInsets.all(16),
                       child: Text(
-                        'Tổng = Σ (điểm × trọng số / 100).\n\nMột bài thi: điểm phải lớn hơn (5 − tổng đã quy đổi) ÷ (trọng số bài thi / 100).\n\nĐiểm thi gợi ý theo bước 0,1. Tổng đúng 5 chưa đạt mục tiêu “trên 5”; tính bằng tổng chưa làm tròn.\n\nDữ liệu chỉ ở màn hình hiện tại, mất khi đóng. Không gửi lên server hay thay đổi điểm đã công bố.',
+                        'Tổng = Σ (điểm × trọng số / 100).\n\nMột bài thi: điểm phải lớn hơn (5 − tổng đã quy đổi) ÷ (trọng số bài thi / 100), đồng thời đạt ngưỡng FE/PE đã nhập.\n\nĐiểm thi gợi ý theo bước 0,1. Tổng đúng 5 chưa đạt mục tiêu “trên 5”; tính bằng tổng chưa làm tròn.\n\nDữ liệu chỉ ở màn hình hiện tại, mất khi đóng. Không gửi lên server hay thay đổi điểm đã công bố.',
                       ),
                     ),
                   ],
@@ -288,6 +291,24 @@ class _GradeForecastPageState extends State<GradeForecastPage> {
               );
             },
           ),
+          if (entry.kind != 'known')
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: TextField(
+                key: ValueKey('forecast-minimum-${entry.id}'),
+                controller: entry.minimum,
+                maxLength: 12,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: InputDecoration(
+                  labelText: 'Điểm tối thiểu ${entry.kind} (theo đề cương)',
+                  helperText: '0 = không áp dụng ngưỡng riêng',
+                  counterText: '',
+                ),
+                onChanged: (_) => setState(() => result = null),
+              ),
+            ),
         ],
       ),
     ),
@@ -353,7 +374,7 @@ class _GradeForecastPageState extends State<GradeForecastPage> {
                             DataCell(
                               Text(
                                 s.fe == null
-                                    ? 'Không đủ dù FE = 10'
+                                    ? s.reason ?? 'Không đủ dù FE = 10'
                                     : forecastNumber(s.fe!),
                               ),
                             ),
