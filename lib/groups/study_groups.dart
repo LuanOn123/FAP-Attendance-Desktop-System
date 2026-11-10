@@ -282,6 +282,7 @@ class _StudyGroupsState extends State<StudyGroups> {
         ),
       for (final g in groups)
         Card(
+          key: ValueKey('group/${g['id']}'),
           child: ExpansionTile(
             key: ValueKey(g['id']),
             title: Text(
@@ -301,6 +302,29 @@ class _StudyGroupsState extends State<StudyGroups> {
                     dirty = true;
                   }),
                 ),
+              ),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.assignment_outlined),
+                label: const Text('Giao việc cho nhóm'),
+                onPressed:
+                    busy ||
+                        dirty ||
+                        pending != null ||
+                        text.text.isNotEmpty ||
+                        attachment != null
+                    ? null
+                    : () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => GroupTasksPage(
+                            call: widget.call,
+                            classId: widget.classId,
+                            groupId: g['id'],
+                            groupName: g['name'],
+                            version: plan!['version'] as int,
+                            memberCount: (g['memberIds'] as List).length,
+                          ),
+                        ),
+                      ),
               ),
               for (final s in students.where(
                 (s) => (g['memberIds'] as List).contains(s['studentId']),
@@ -377,27 +401,6 @@ class _StudyGroupsState extends State<StudyGroups> {
           ),
       ],
       if (groups.isNotEmpty) ...[
-        FilledButton.icon(
-          icon: const Icon(Icons.assignment_outlined),
-          label: const Text('Giao việc cho nhóm'),
-          onPressed: busy || dirty || pending != null || selected == null
-              ? null
-              : () {
-                  final group = groups.firstWhere((g) => g['id'] == selected);
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => GroupTasksPage(
-                        call: widget.call,
-                        classId: widget.classId,
-                        groupId: group['id'],
-                        groupName: group['name'],
-                        memberCount: (group['memberIds'] as List).length,
-                        version: plan!['version'] as int,
-                      ),
-                    ),
-                  );
-                },
-        ),
         DropdownButtonFormField<String>(
           key: ValueKey(selected),
           initialValue: selected,
