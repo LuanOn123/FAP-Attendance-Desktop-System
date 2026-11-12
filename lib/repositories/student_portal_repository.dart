@@ -13,6 +13,14 @@ class SheetStudentPortalRepository implements StudentPortalRepository {
   SheetStudentPortalRepository(this.sheets);
   @override
   Future<dynamic> call(String method, [PortalRow data = const {}]) async {
+    if (method == 'firebaseGroupSignup' ||
+        (const bool.fromEnvironment('FIREBASE_GROUP_SIGNUP') &&
+            method == 'getGroupPlan')) {
+      return sheets.firebaseGroupSignup({
+        ...data,
+        if (method == 'getGroupPlan') 'action': 'plan',
+      });
+    }
     try {
       return await sheets.request('portalCall', {
         'method': method,

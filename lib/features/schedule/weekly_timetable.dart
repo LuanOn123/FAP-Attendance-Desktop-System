@@ -62,7 +62,7 @@ class WeeklyTimetable extends StatelessWidget {
         const SizedBox(height: 14),
         LayoutBuilder(
           builder: (context, constraints) {
-            final width = math.max(1170.0, constraints.maxWidth);
+            final width = math.max(1040.0, constraints.maxWidth);
             return SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: SizedBox(
@@ -77,7 +77,7 @@ class WeeklyTimetable extends StatelessWidget {
                   children: [
                     TableRow(
                       decoration: const BoxDecoration(
-                        color: AppPalette.orangeSoft,
+                        color: AppPalette.tonalStrong,
                       ),
                       children: [
                         const Padding(
@@ -158,15 +158,15 @@ class WeeklyTimetable extends StatelessWidget {
         schedules.where((s) => s.dayOfWeek == day && s.slot == slot).toList()
           ..sort((a, b) => a.startTime.compareTo(b.startTime));
     return Container(
-      constraints: const BoxConstraints(minHeight: 150),
+      constraints: const BoxConstraints(minHeight: 132),
       padding: const EdgeInsets.all(7),
-      color: day == 7 ? const Color(0xFFF8FAFC) : Colors.white,
+      color: day == DateTime.now().weekday ? AppPalette.tonal : Colors.white,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (lessons.isEmpty)
             const Padding(
-              padding: EdgeInsets.only(top: 62),
+              padding: EdgeInsets.only(top: 50),
               child: Center(
                 child: Text('—', style: TextStyle(color: Color(0xFFCCD3DD))),
               ),
@@ -175,7 +175,12 @@ class WeeklyTimetable extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(bottom: 6),
               child: Material(
-                color: color(s.subjectCode).withValues(alpha: 0.07),
+                color: currentScheduleIds.contains(s.scheduleId)
+                    ? AppPalette.orangeSoft
+                    : Color.alphaBlend(
+                        color(s.subjectCode).withValues(alpha: .08),
+                        Colors.white,
+                      ),
                 borderRadius: BorderRadius.circular(8),
                 child: InkWell(
                   onTap: () => onSelect(s),

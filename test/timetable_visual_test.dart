@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fap_attendance/core/app_theme.dart';
 import 'package:fap_attendance/features/schedule/schedule_screen.dart';
+import 'package:fap_attendance/features/schedule/weekly_timetable.dart';
 import 'package:fap_attendance/features/schedule/ocr_review_screen.dart';
 import 'package:fap_attendance/features/classes/classes_screen.dart';
 import 'package:fap_attendance/models/lecturer.dart';
@@ -101,7 +102,13 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('CHỦ NHẬT'), findsOneWidget);
-    expect(find.textContaining('SE1917'), findsNWidgets(4));
+    expect(
+      find.descendant(
+        of: find.byType(WeeklyTimetable),
+        matching: find.textContaining('SE1917'),
+      ),
+      findsNWidgets(4),
+    );
     expect(tester.takeException(), isNull);
     Future<void> snapshot(String name) async {
       if (!capture) return;

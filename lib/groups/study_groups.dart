@@ -7,11 +7,18 @@ import 'package:file_picker/file_picker.dart';
 import 'group_signup_panel.dart';
 import 'group_api.dart';
 import 'group_tasks.dart';
+import '../services/schedule_clock.dart';
 
 class StudyGroups extends StatefulWidget {
   final GroupCall call;
   final String classId;
-  const StudyGroups({super.key, required this.call, required this.classId});
+  final bool startInChat;
+  const StudyGroups({
+    super.key,
+    required this.call,
+    required this.classId,
+    this.startInChat = false,
+  });
   @override
   State<StudyGroups> createState() => _StudyGroupsState();
 }
@@ -28,6 +35,7 @@ class _StudyGroupsState extends State<StudyGroups> {
   int generation = 0;
   bool firstMessages = true;
   bool signupLocked = false;
+  late bool chatMode = widget.startInChat;
   @override
   void initState() {
     super.initState();
@@ -74,9 +82,10 @@ class _StudyGroupsState extends State<StudyGroups> {
         students = (value['students'] as List)
             .map((s) => Map<String, dynamic>.from(s as Map))
             .toList();
-        selected = groups.any((g) => g['id'] == selected)
+        final next = groups.any((g) => g['id'] == selected)
             ? selected
             : groups.firstOrNull?['id'];
+        if (selected != next) resetConversation(next as String?);
         dirty = false;
         loading = false;
         error = null;
@@ -96,6 +105,7 @@ class _StudyGroupsState extends State<StudyGroups> {
     if (selected == null || polling || dirty) return;
     polling = true;
     final id = selected, epoch = generation;
+    if (firstMessages && error != null) setState(() => error = null);
     try {
       final v = await widget.call('getGroupMessages', {
         'classId': widget.classId,
@@ -117,15 +127,28 @@ class _StudyGroupsState extends State<StudyGroups> {
         error = null;
       });
     } catch (e) {
-      if (mounted && selected == id) {
+      if (mounted && epoch == generation && selected == id) {
         setState(() {
           error = '$e';
           messages = [];
         });
       }
     } finally {
-      polling = false;
+      if (epoch == generation) polling = false;
     }
+  }
+
+  Widget emptyConversation() {
+    if (dirty) return const Center(child: Text('Chưa lưu nhóm'));
+    if (error != null) return const SizedBox.shrink();
+    return Center(
+      child: Text(
+        firstMessages
+            ? 'Đang tải tin nhắn…'
+            : 'Chưa có tin nhắn trong hội thoại này.',
+        textAlign: TextAlign.center,
+      ),
+    );
   }
 
   Future<void> save() async {
@@ -163,8 +186,7 @@ class _StudyGroupsState extends State<StudyGroups> {
       for (var i = 0; i < shuffled.length; i++) {
         (groups[i % n]['memberIds'] as List).add(shuffled[i]['studentId']);
       }
-      selected = groups.first['id'];
-      messages = [];
+      resetConversation(groups.first['id'] as String);
       dirty = true;
     });
   }
@@ -178,14 +200,71 @@ class _StudyGroupsState extends State<StudyGroups> {
       'requestKey': groupRequestKey(),
     };
     await widget.call('sendGroupMessage', pending!);
+    if (!mounted) return;
     pending = null;
     text.clear();
     attachment = null;
     await readMessages();
   }
 
+  void resetConversation(String? id) {
+    selected = id;
+    messages = [];
+    older = null;
+    firstMessages = true;
+    polling = false;
+    generation++;
+  }
+
+  Future<void> selectConversation(String id) async {
+    if (id == selected || busy || pending != null) return;
+    if ((text.text.isNotEmpty || attachment != null) &&
+        !await confirm(context, 'Bỏ tin nhắn và tệp chưa gửi để đổi nhóm?')) {
+      return;
+    }
+    if (!mounted || busy || pending != null) return;
+    setState(() {
+      text.clear();
+      attachment = null;
+      error = null;
+      resetConversation(id);
+    });
+    await readMessages();
+  }
+
   @override
-  Widget build(BuildContext context) => ListView(
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+        child: Wrap(
+          spacing: 8,
+          children: [
+            ChoiceChip(
+              label: const Text('Tin nhắn'),
+              selected: chatMode,
+              onSelected: (_) => setState(() => chatMode = true),
+            ),
+            ChoiceChip(
+              label: const Text('Quản lý nhóm'),
+              selected: !chatMode,
+              onSelected: (_) => setState(() => chatMode = false),
+            ),
+          ],
+        ),
+      ),
+      Expanded(
+        child: IndexedStack(
+          index: chatMode ? 1 : 0,
+          sizing: StackFit.expand,
+          children: [management(), conversation()],
+        ),
+      ),
+    ],
+  );
+
+  Widget management() => ListView(
     padding: const EdgeInsets.all(20),
     children: [
       Text('Nhóm học tập', style: Theme.of(context).textTheme.headlineSmall),
@@ -400,142 +479,408 @@ class _StudyGroupsState extends State<StudyGroups> {
             ),
           ),
       ],
-      if (groups.isNotEmpty) ...[
-        DropdownButtonFormField<String>(
-          key: ValueKey(selected),
-          initialValue: selected,
-          decoration: const InputDecoration(labelText: 'Phòng trao đổi'),
-          items: groups
-              .map(
-                (g) => DropdownMenuItem<String>(
-                  value: g['id'],
-                  child: Text('${g['name']}'),
-                ),
-              )
-              .toList(),
-          onChanged: busy || pending != null
-              ? null
-              : (v) {
-                  setState(() {
-                    selected = v;
-                    messages = [];
-                    older = null;
-                    firstMessages = true;
-                    generation++;
-                  });
-                  readMessages();
-                },
+    ],
+  );
+
+  Widget conversation() {
+    if (loading) return const Center(child: CircularProgressIndicator());
+    if (groups.isEmpty || selected == null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(error ?? 'Chưa có hội thoại. Tạo nhóm để bắt đầu trao đổi.'),
+            TextButton(
+              onPressed: error == null
+                  ? () => setState(() => chatMode = false)
+                  : load,
+              child: Text(error == null ? 'Quản lý nhóm' : 'Tải lại nhóm'),
+            ),
+          ],
         ),
-        if (older != null)
-          TextButton(
-            onPressed: () => readMessages(previous: true),
-            child: const Text('Tin nhắn cũ hơn'),
-          ),
-        for (final m in messages)
-          Card(
-            child: ListTile(
-              title: Text('${m['senderName']} · ${m['createdAt']}'),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+      );
+    }
+    final active = groups.firstWhere((group) => group['id'] == selected);
+    final colors = Theme.of(context).colorScheme;
+    return LayoutBuilder(
+      builder: (context, size) {
+        final wide = size.maxWidth >= 760;
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (wide) ...[
+              SizedBox(
+                width: 252,
+                child: Material(
+                  color: colors.surface,
+                  child: ListView(
+                    padding: const EdgeInsets.all(12),
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: Text(
+                          'HỘI THOẠI',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      for (final group in groups)
+                        ListTile(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          selected: selected == group['id'],
+                          selectedTileColor: const Color(0xFFE5F0FF),
+                          leading: const CircleAvatar(
+                            child: Icon(Icons.groups_outlined),
+                          ),
+                          title: Text(
+                            '${group['name']}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            '${(group['memberIds'] as List).length} thành viên',
+                          ),
+                          onTap: busy || pending != null
+                              ? null
+                              : () => selectConversation(group['id'] as String),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              const VerticalDivider(width: 1),
+            ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  SelectableText('${m['text']}'),
-                  if (m['hasFile'] == true)
-                    TextButton(
-                      onPressed: busy
-                          ? null
-                          : () => action(() async {
-                              final f = await widget.call('downloadGroupFile', {
-                                'classId': widget.classId,
-                                'groupId': selected,
-                                'messageId': m['id'],
-                              });
-                              await FilePicker.platform.saveFile(
-                                dialogTitle: 'Lưu tệp nhóm',
-                                fileName: f['name'],
-                                bytes: Uint8List.fromList(
-                                  base64Decode(f['base64']),
-                                ),
-                              );
-                            }),
-                      child: Text('Tải ${m['fileName']}'),
+                  Material(
+                    color: colors.surface,
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 4,
+                      ),
+                      leading: const CircleAvatar(
+                        child: Icon(Icons.forum_outlined),
+                      ),
+                      title: wide
+                          ? Text(
+                              '${active['name']}',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            )
+                          : DropdownButton<String>(
+                              value: selected,
+                              isExpanded: true,
+                              underline: const SizedBox.shrink(),
+                              items: [
+                                for (final group in groups)
+                                  DropdownMenuItem(
+                                    value: group['id'] as String,
+                                    child: Text(
+                                      '${group['name']}',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                              ],
+                              onChanged: busy || pending != null
+                                  ? null
+                                  : (value) {
+                                      if (value != null) {
+                                        selectConversation(value);
+                                      }
+                                    },
+                            ),
+                      subtitle: Text(
+                        '${(active['memberIds'] as List).length} thành viên',
+                      ),
+                      trailing: IconButton(
+                        tooltip: 'Tải lại tin nhắn',
+                        icon: const Icon(Icons.refresh),
+                        onPressed: busy || dirty ? null : readMessages,
+                      ),
                     ),
+                  ),
+                  if (dirty || error != null)
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Text(
+                        dirty
+                            ? 'Lưu cách chia nhóm trước khi nhắn tin.'
+                            : error!,
+                      ),
+                    ),
+                  Expanded(
+                    child: ColoredBox(
+                      color: const Color(0xFFEAF0F7),
+                      child: messages.isEmpty
+                          ? emptyConversation()
+                          : ListView.builder(
+                              key: ValueKey(selected),
+                              reverse: true,
+                              padding: const EdgeInsets.all(16),
+                              itemCount:
+                                  messages.length + (older == null ? 0 : 1),
+                              itemBuilder: (context, index) {
+                                if (index == messages.length) {
+                                  return Center(
+                                    child: TextButton(
+                                      onPressed: busy
+                                          ? null
+                                          : () => readMessages(previous: true),
+                                      child: const Text('Tin nhắn cũ hơn'),
+                                    ),
+                                  );
+                                }
+                                final i = messages.length - index - 1;
+                                final current = messages[i];
+                                final day = messageDate(current);
+                                return Column(
+                                  children: [
+                                    if (day != null &&
+                                        (i == 0 ||
+                                            messageDate(messages[i - 1]) !=
+                                                day))
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 8,
+                                        ),
+                                        child: Chip(label: Text(day)),
+                                      ),
+                                    messageBubble(current),
+                                  ],
+                                );
+                              },
+                            ),
+                    ),
+                  ),
+                  composer(),
                 ],
               ),
             ),
-          ),
-        TextField(
-          controller: text,
-          onChanged: (_) => setState(() {}),
-          enabled: !busy && pending == null,
-          maxLength: 2000,
-          minLines: 1,
-          maxLines: 4,
-          decoration: const InputDecoration(labelText: 'Tin nhắn cho nhóm'),
-        ),
-        if (attachment != null) Text('Đính kèm: ${attachment!['name']}'),
-        if (pending != null && !busy)
-          TextButton(
-            onPressed: () async {
-              if (!await confirm(
-                context,
-                'Tin nhắn có thể đã được nhận. Bỏ bản chờ và kiểm tra lịch sử trước khi gửi mới?',
-              )) {
-                return;
-              }
-              if (!mounted) return;
-              setState(() {
-                pending = null;
-                text.clear();
-                attachment = null;
-              });
-              await load();
-            },
-            child: const Text('Bỏ bản gửi đang chờ và kiểm tra lại'),
-          ),
-        Wrap(
-          spacing: 12,
+          ],
+        );
+      },
+    );
+  }
+
+  DateTime? messageTime(Map<String, dynamic> message) =>
+      DateTime.tryParse('${message['createdAt'] ?? ''}');
+
+  String? messageDate(Map<String, dynamic> message) {
+    final at = messageTime(message);
+    return at == null ? null : ScheduleClock.date(ScheduleClock.now(at));
+  }
+
+  Widget messageBubble(Map<String, dynamic> message) {
+    final mine =
+        message['mine'] == true ||
+        (message['sender'] != null && message['sender'] == plan?['viewerId']);
+    final at = messageTime(message);
+    final delivery = message['delivery'] as Map?;
+    final count = delivery?['recipientCount'] ?? 0;
+    final read = (delivery?['readCount'] as num?) ?? 0;
+    final delivered = (delivery?['deliveredCount'] as num?) ?? 0;
+    final status = read > 0
+        ? 'Đã xem $read/$count'
+        : delivered > 0
+        ? 'Đã nhận $delivered/$count'
+        : 'Đã gửi';
+    final body = '${message['text'] ?? ''}';
+    final name = '${message['senderName'] ?? 'Thành viên'}'.trim();
+    return LayoutBuilder(
+      builder: (context, box) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Row(
+          mainAxisAlignment: mine
+              ? MainAxisAlignment.end
+              : MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 8,
           children: [
-            OutlinedButton(
-              onPressed: busy || dirty || pending != null
-                  ? null
-                  : () => action(() async {
-                      final p = await FilePicker.platform.pickFiles(
-                        withData: true,
-                        type: FileType.custom,
-                        allowedExtensions: [
-                          'pdf',
-                          'txt',
-                          'png',
-                          'jpg',
-                          'jpeg',
-                          'xlsx',
-                          'docx',
-                          'csv',
-                        ],
-                      );
-                      if (p == null) return;
-                      if (p.files.single.size > 512000 ||
-                          p.files.single.bytes == null) {
-                        throw StateError('Tệp tối đa 500 KB.');
-                      }
-                      attachment = {
-                        'name': p.files.single.name,
-                        'base64': base64Encode(p.files.single.bytes!),
-                      };
-                    }),
-              child: const Text('Đính kèm (tối đa 500 KB)'),
-            ),
-            FilledButton(
-              onPressed: busy || dirty ? null : () => action(send),
-              child: Text(
-                pending == null ? 'Gửi tin nhắn' : 'Thử gửi lại cùng tin',
+            if (!mine)
+              CircleAvatar(
+                radius: 16,
+                child: Text(
+                  name.isEmpty ? '?' : name.characters.first.toUpperCase(),
+                ),
+              ),
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: min(560.0, box.maxWidth * .72),
+              ),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: mine ? const Color(0xFFD8EBFF) : Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFD6E2F0)),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    spacing: 4,
+                    children: [
+                      if (!mine)
+                        Text(
+                          name,
+                          style: Theme.of(context).textTheme.labelLarge,
+                        ),
+                      if (body.isNotEmpty) SelectableText(body),
+                      if (message['hasFile'] == true)
+                        TextButton.icon(
+                          onPressed: busy
+                              ? null
+                              : () => action(() => download(message)),
+                          icon: const Icon(Icons.file_download_outlined),
+                          label: Text('${message['fileName']}'),
+                        ),
+                      Text(
+                        [
+                          if (at != null)
+                            TimeOfDay.fromDateTime(
+                              ScheduleClock.now(at),
+                            ).format(context),
+                          if (mine) status,
+                        ].join(' · '),
+                        style: Theme.of(context).textTheme.labelSmall,
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget composer() {
+    final canSend =
+        !busy &&
+        !dirty &&
+        (pending != null || text.text.trim().isNotEmpty || attachment != null);
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (attachment != null)
+              InputChip(
+                label: Text(
+                  '${attachment!['name']}',
+                  overflow: TextOverflow.ellipsis,
+                ),
+                onDeleted: busy || pending != null
+                    ? null
+                    : () => setState(() => attachment = null),
+              ),
+            if (pending != null && !busy)
+              TextButton(
+                onPressed: discardPending,
+                child: const Text('Bỏ bản gửi đang chờ và kiểm tra lại'),
+              ),
+            Row(
+              spacing: 8,
+              children: [
+                IconButton(
+                  tooltip: 'Đính kèm (tối đa 500 KB)',
+                  onPressed: busy || dirty || pending != null
+                      ? null
+                      : () => action(pickAttachment),
+                  icon: const Icon(Icons.attach_file),
+                ),
+                Expanded(
+                  child: TextField(
+                    controller: text,
+                    onChanged: (_) => setState(() {}),
+                    enabled: !busy && !dirty && pending == null,
+                    maxLength: 2000,
+                    minLines: 1,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      hintText: 'Tin nhắn cho nhóm',
+                      counterText: '',
+                    ),
+                  ),
+                ),
+                IconButton.filled(
+                  tooltip: pending == null
+                      ? 'Gửi tin nhắn'
+                      : 'Thử gửi lại cùng tin',
+                  onPressed: canSend ? () => action(send) : null,
+                  style: IconButton.styleFrom(
+                    backgroundColor: const Color(0xFF0068DB),
+                    foregroundColor: Colors.white,
+                  ),
+                  icon: Icon(pending == null ? Icons.send : Icons.refresh),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> discardPending() async {
+    if (!await confirm(
+      context,
+      'Tin nhắn có thể đã được nhận. Bỏ bản chờ và kiểm tra lịch sử trước khi gửi mới?',
+    )) {
+      return;
+    }
+    if (!mounted) return;
+    setState(() {
+      pending = null;
+      text.clear();
+      attachment = null;
+    });
+    await load();
+  }
+
+  Future<void> pickAttachment() async {
+    final picked = await FilePicker.platform.pickFiles(
+      withData: true,
+      type: FileType.custom,
+      allowedExtensions: [
+        'pdf',
+        'txt',
+        'png',
+        'jpg',
+        'jpeg',
+        'xlsx',
+        'docx',
+        'csv',
       ],
-    ],
-  );
+    );
+    if (!mounted || picked == null) return;
+    final file = picked.files.single;
+    if (file.size > 512000 || file.bytes == null) {
+      throw StateError('Tệp tối đa 500 KB.');
+    }
+    attachment = {'name': file.name, 'base64': base64Encode(file.bytes!)};
+  }
+
+  Future<void> download(Map<String, dynamic> message) async {
+    final file = await widget.call('downloadGroupFile', {
+      'classId': widget.classId,
+      'groupId': selected,
+      'messageId': message['id'],
+    });
+    if (!mounted) return;
+    await FilePicker.platform.saveFile(
+      dialogTitle: 'Lưu tệp nhóm',
+      fileName: file['name'],
+      bytes: Uint8List.fromList(base64Decode(file['base64'])),
+    );
+  }
+
   Future<bool> confirm(BuildContext context, String title) async =>
       await showDialog<bool>(
         context: context,

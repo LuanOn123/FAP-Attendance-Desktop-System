@@ -23,8 +23,11 @@ import '../../repositories/student_portal_repository.dart';
 import '../student_portal/student_portal_screen.dart';
 import '../../repositories/daily_attendance_repository.dart';
 import '../../services/attendance_local_store.dart';
+import '../../services/attendance_reminder_history.dart';
 import '../../models/teaching_occurrence.dart';
 import '../attendance/attendance_day_panel.dart';
+import '../attendance/attendance_reminder_history_page.dart';
+import '../attendance/quick_attendance_screen.dart';
 
 class ScheduleScreen extends StatefulWidget {
   final Lecturer lecturer;
@@ -99,6 +102,10 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       (widget.repository is SheetScheduleRepository
           ? SecureAttendanceLocalStore()
           : MemoryAttendanceLocalStore());
+  late final _reminderHistory = AttendanceReminderHistory(
+    _attendanceStore,
+    widget.lecturer.lecturerId,
+  );
   List<Schedule> get _currentSlots => schedules
       .where(
         (s) =>
@@ -176,6 +183,30 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
               },
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  void _showReminderHistory() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AttendanceReminderHistoryPage(
+          history: _reminderHistory,
+          onOpen: (selector) {
+            if (!mounted) return;
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => QuickAttendanceScreen(
+                  repository: _dailyRepo,
+                  selector: selector,
+                  owner: widget.lecturer.lecturerId,
+                  store: _attendanceStore,
+                  portalRepository: _portalRepo,
+                ),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -385,6 +416,11 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         style: TextStyle(fontWeight: FontWeight.w700),
       ),
       actions: [
+        IconButton(
+          tooltip: 'Thông báo',
+          onPressed: _showReminderHistory,
+          icon: const Icon(Icons.notifications_outlined),
+        ),
         IconButton(
           tooltip: 'Điểm danh nhanh hôm nay',
           onPressed: _showDailyAttendance,
@@ -623,6 +659,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
           repository: _dailyRepo,
           owner: widget.lecturer.lecturerId,
           store: _attendanceStore,
+          reminderHistory: _reminderHistory,
           portalRepository: _portalRepo,
           clock: widget.clock,
           onOpenQr: _openDayQr,
@@ -740,7 +777,11 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                     subtitle: Text(
                       '${current.startTime} – ${current.endTime} · ${current.semester}',
                     ),
-                    trailing: const Icon(Icons.qr_code),
+                    trailing: const CircleAvatar(
+                      backgroundColor: AppPalette.orangeSoft,
+                      foregroundColor: AppPalette.orangeDark,
+                      child: Icon(Icons.qr_code),
+                    ),
                     onTap: () => _openAttendance(current),
                   ),
               ],
@@ -884,13 +925,18 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   }
 
   Widget stat(String label, String value, IconData icon) => SizedBox(
-    width: 230,
+    width: 214,
     child: Card(
+      color: AppPalette.tonal,
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Row(
           children: [
-            Icon(icon, color: AppPalette.orange),
+            CircleAvatar(
+              backgroundColor: AppPalette.orangeSoft,
+              foregroundColor: AppPalette.orangeDark,
+              child: Icon(icon, size: 20),
+            ),
             const SizedBox(width: 16),
             Expanded(
               child: Column(

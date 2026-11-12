@@ -7,11 +7,13 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 import '../core/app_config.dart';
+import 'attendance_local_store.dart';
 
 /// System browser + loopback + PKCE. Only refresh tokens are persisted.
 class GoogleOAuthService {
   final http.Client client;
   final FlutterSecureStorage storage;
+  late final _secureStore = SecureAttendanceLocalStore(storage: storage);
   String? _idToken, _refreshToken;
   DateTime _expires = DateTime(2000);
   bool _remember = false;
@@ -134,12 +136,12 @@ class GoogleOAuthService {
       Duration(seconds: (data['expires_in'] as num).toInt() - 60),
     );
     if (_remember && _refreshToken != null) {
-      await storage.write(key: _storageKey, value: _refreshToken);
+      await _secureStore.write(_storageKey, _refreshToken!);
     }
   }
 
   Future<bool> restore() async {
-    _refreshToken = await storage.read(key: _storageKey);
+    _refreshToken = await _secureStore.read(_storageKey);
     if (_refreshToken == null) return false;
     _remember = true;
     await idToken();
@@ -170,6 +172,6 @@ class GoogleOAuthService {
     _idToken = null;
     _refreshToken = null;
     _expires = DateTime(2000);
-    await storage.delete(key: _storageKey);
+    await _secureStore.delete(_storageKey);
   }
 }

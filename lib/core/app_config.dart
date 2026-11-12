@@ -1,7 +1,11 @@
 class AppConfig {
   static const clientId = String.fromEnvironment('GOOGLE_CLIENT_ID');
   static const clientSecret = String.fromEnvironment('GOOGLE_CLIENT_SECRET');
-  static const scriptUrl = String.fromEnvironment('APPS_SCRIPT_URL');
+  static const scriptUrl = String.fromEnvironment(
+    'FIREBASE_SHARED_API_URL',
+    defaultValue:
+        'https://asia-southeast1-fap-attendance-88920.cloudfunctions.net/sharedApi',
+  );
   static const demo = bool.fromEnvironment('DEMO_MODE', defaultValue: false);
   static const domainList = String.fromEnvironment(
     'SCHOOL_DOMAINS',

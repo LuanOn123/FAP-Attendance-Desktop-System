@@ -13,6 +13,7 @@ class GoogleSheetService {
     required this.tokenProvider,
     http.Client? client,
   }) : client = client ?? http.Client() {
+    if (_firebaseEndpoint) return;
     if (endpoint.scheme != 'https' ||
         endpoint.host != 'script.google.com' ||
         !endpoint.path.endsWith('/exec')) {
@@ -21,7 +22,18 @@ class GoogleSheetService {
       );
     }
   }
+  bool get _firebaseEndpoint =>
+      endpoint.scheme == 'https' &&
+      endpoint.host ==
+          'asia-southeast1-fap-attendance-88920.cloudfunctions.net' &&
+      endpoint.path == '/sharedApi' &&
+      endpoint.userInfo.isEmpty &&
+      !endpoint.hasPort &&
+      !endpoint.hasQuery &&
+      !endpoint.hasFragment;
+
   Future<dynamic> request(String action, [JsonRow payload = const {}]) async {
+    if (_firebaseEndpoint) return _firebaseRequest(action, payload);
     final token = await tokenProvider();
     final req = http.Request('POST', endpoint)
       ..followRedirects = false
@@ -62,6 +74,30 @@ class GoogleSheetService {
     }
     return data['data'];
   }
+
+  Future<dynamic> _firebaseRequest(String action, JsonRow data) async {
+    final token = await tokenProvider();
+    final request = http.Request('POST', endpoint)
+      ..followRedirects = false
+      ..headers.addAll({
+        'Content-Type': 'application/json',
+        'Authorization': 'Google $token',
+      })
+      ..body = jsonEncode({...data, 'action': action});
+    final response = await http.Response.fromStream(
+      await client.send(request).timeout(const Duration(seconds: 45)),
+    ).timeout(const Duration(seconds: 45));
+    if (response.statusCode != 200) throw const AppException('SERVER_ERROR');
+    final result = jsonDecode(utf8.decode(response.bodyBytes));
+    if (result is! Map) throw const AppException('SERVER_ERROR');
+    if (result['ok'] != true) {
+      throw AppException('${result['error'] ?? 'SERVER_ERROR'}');
+    }
+    return result['data'];
+  }
+
+  Future<dynamic> firebaseGroupSignup(JsonRow data) =>
+      _firebaseRequest('groupSignup', {'input': data});
 
   Future<List<JsonRow>> getRows(String sheet) async =>
       (await request('getRows', {'sheet': sheet}) as List)

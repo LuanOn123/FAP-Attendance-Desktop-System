@@ -12,10 +12,10 @@ class SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     width: double.infinity,
-    padding: const EdgeInsets.all(28),
+    padding: const EdgeInsets.all(24),
     decoration: BoxDecoration(
-      color: AppPalette.orangeSoft,
-      borderRadius: BorderRadius.circular(24),
+      color: AppPalette.tonal,
+      borderRadius: BorderRadius.circular(16),
       border: Border.all(color: AppPalette.line),
     ),
     child: Column(

@@ -17,6 +17,50 @@ const student = RosterStudent(
   fullName: 'Student A',
 );
 void main() {
+  testWidgets('class roster can be searched by name without accents or MSSV', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final repo = DemoScheduleRepository();
+    await repo.importRoster(target, [
+      student,
+      const RosterStudent(
+        classCode: 'SE1848',
+        studentCode: 'SE000002',
+        fullName: 'Nguyễn Ánh',
+      ),
+    ]);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ClassesScreen(
+            classes: await repo.getClasses(),
+            schedules: await repo.getSchedules(),
+            lecturerId: 'demo-lecturer',
+            repository: repo,
+            onChanged: () async {},
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byType(ChoiceChip).first);
+    await tester.pumpAndSettle();
+    final search = find.byType(TextField);
+    await tester.enterText(search, 'nguyen anh');
+    await tester.pumpAndSettle();
+    expect(find.text('Nguyễn Ánh'), findsOneWidget);
+    expect(find.text('Student A'), findsNothing);
+    await tester.enterText(search, 'SE000001');
+    await tester.pumpAndSettle();
+    expect(find.text('Student A'), findsOneWidget);
+    expect(find.text('Nguyễn Ánh'), findsNothing);
+    await tester.tap(find.byTooltip('Xóa tìm kiếm'));
+    await tester.pumpAndSettle();
+    expect(find.text('Nguyễn Ánh'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   Future<void> open(
     WidgetTester tester,
     DemoScheduleRepository repo,

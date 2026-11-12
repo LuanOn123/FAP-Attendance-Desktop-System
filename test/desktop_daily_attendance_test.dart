@@ -8,9 +8,11 @@ import 'package:fap_attendance/models/quick_attendance_draft.dart';
 import 'package:fap_attendance/repositories/daily_attendance_repository.dart';
 import 'package:fap_attendance/services/google_sheet_service.dart';
 import 'package:fap_attendance/services/attendance_local_store.dart';
+import 'package:fap_attendance/services/attendance_reminder_history.dart';
 import 'package:fap_attendance/services/desktop_attendance_reminders.dart';
 import 'package:fap_attendance/features/attendance/quick_attendance_screen.dart';
 import 'package:fap_attendance/features/attendance/attendance_day_panel.dart';
+import 'package:fap_attendance/features/attendance/attendance_reminder_history_page.dart';
 
 final selector = <String, dynamic>{
   'classId': 'c1',
@@ -92,12 +94,14 @@ class QuickFixture extends DailyAttendanceRepository {
 class AlertFixture extends AttendanceAlerts {
   final shown = <DesktopAttendanceReminder>[];
   final retained = <Set<String>>[];
+  bool fails = false;
   @override
   Future<void> show(
     DesktopAttendanceReminder r,
     void Function() onClick,
   ) async {
     shown.add(r);
+    if (fails) throw StateError('Windows notification rejected');
   }
 
   @override
@@ -171,7 +175,7 @@ void main() {
           return http.Response(
             jsonEncode({'ok': true, 'data': QuickFixture().context}),
             200,
-              headers: {'content-type': 'application/json; charset=utf-8'},
+            headers: {'content-type': 'application/json; charset=utf-8'},
           );
         }),
       );
@@ -261,6 +265,65 @@ void main() {
     expect(repo.submissions, isEmpty);
     await t.pumpWidget(const SizedBox());
   });
+  testWidgets(
+    'Desktop test reminders persist per lecturer and reopen the lesson',
+    (t) async {
+      await t.binding.setSurfaceSize(const Size(1280, 900));
+      addTearDown(() => t.binding.setSurfaceSize(null));
+      final store = MemoryAttendanceLocalStore();
+      final alerts = AlertFixture();
+      final history = AttendanceReminderHistory(store, 'l1');
+      var now = DateTime.utc(2026, 10, 30, 15);
+      await t.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: AttendanceDayPanel(
+                repository: QuickFixture(),
+                owner: 'l1',
+                store: store,
+                alerts: alerts,
+                reminderHistory: history,
+                clock: () => now,
+              ),
+            ),
+          ),
+        ),
+      );
+      await t.pumpAndSettle();
+      final testButton = find.text('Thử thông báo Windows');
+      await t.tap(testButton);
+      await t.pumpAndSettle();
+      alerts.fails = true;
+      now = now.add(const Duration(seconds: 1));
+      await t.tap(testButton);
+      await t.pumpAndSettle();
+
+      final reopened = AttendanceReminderHistory(store, 'l1');
+      expect((await reopened.read()).map((e) => e.sentToWindows), [
+        false,
+        true,
+      ]);
+      expect(await AttendanceReminderHistory(store, 'l2').read(), isEmpty);
+      AttendanceData? opened;
+      await t.pumpWidget(
+        MaterialApp(
+          home: AttendanceReminderHistoryPage(
+            history: reopened,
+            onOpen: (selector) => opened = selector,
+          ),
+        ),
+      );
+      await t.pumpAndSettle();
+      expect(find.textContaining('Gửi tới Windows thất bại'), findsOneWidget);
+      expect(
+        find.textContaining('Đã yêu cầu Windows hiển thị'),
+        findsOneWidget,
+      );
+      await t.tap(find.text('Thử thông báo điểm danh').first);
+      expect(opened, selector);
+    },
+  );
   testWidgets(
     'mobile completion removes pending reminder on periodic refresh',
     (t) async {

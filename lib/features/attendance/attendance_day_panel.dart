@@ -4,6 +4,7 @@ import '../../models/teaching_occurrence.dart';
 import '../../repositories/daily_attendance_repository.dart';
 import '../../repositories/student_portal_repository.dart';
 import '../../services/attendance_local_store.dart';
+import '../../services/attendance_reminder_history.dart';
 import '../../services/desktop_attendance_reminders.dart';
 import '../../services/schedule_clock.dart';
 import 'quick_attendance_screen.dart';
@@ -15,6 +16,7 @@ class AttendanceDayPanel extends StatefulWidget {
   final StudentPortalRepository? portalRepository;
   final ValueChanged<TeachingOccurrence>? onOpenQr;
   final AttendanceAlerts? alerts;
+  final AttendanceReminderHistory? reminderHistory;
   final bool withReminders, compact;
   final DateTime Function()? clock;
   const AttendanceDayPanel({
@@ -25,6 +27,7 @@ class AttendanceDayPanel extends StatefulWidget {
     this.portalRepository,
     this.onOpenQr,
     this.alerts,
+    this.reminderHistory,
     this.withReminders = true,
     this.compact = false,
     this.clock,
@@ -44,6 +47,9 @@ class _AttendanceDayPanelState extends State<AttendanceDayPanel> {
   Timer? timer;
   DateTime? serverTime, fetchedAt;
   late final alerts = widget.alerts ?? WindowsAttendanceAlerts();
+  late final history =
+      widget.reminderHistory ??
+      AttendanceReminderHistory(widget.store, widget.owner);
   final cursor = AttendanceReminderCursor();
   DateTime get now => widget.clock?.call().toUtc() ?? DateTime.now().toUtc();
   DateTime get authoritativeNow =>
@@ -120,18 +126,7 @@ class _AttendanceDayPanelState extends State<AttendanceDayPanel> {
           final due = cursor.scan(visible, authoritativeNow);
           for (final r in (enabled ? due : <DesktopAttendanceReminder>[])) {
             if (!mounted) return;
-            try {
-              await alerts.show(r, () {
-                if (mounted) openQuick(r.lesson);
-              });
-            } catch (_) {
-              if (mounted) {
-                setState(
-                  () => notificationError =
-                      'Không hiển thị được thông báo Windows. Danh sách buổi chưa chốt vẫn hiện trong app.',
-                );
-              }
-            }
+            await publishReminder(r);
           }
         } catch (_) {
           if (mounted) {
@@ -197,32 +192,47 @@ class _AttendanceDayPanelState extends State<AttendanceDayPanel> {
 
   Future<void> testAlert() async {
     if (visible.isEmpty) return;
+    final lesson = visible.first;
+    await publishReminder(
+      DesktopAttendanceReminder(
+        'test|${lesson.key}',
+        authoritativeNow,
+        lesson,
+        test: true,
+      ),
+    );
+  }
+
+  Future<void> publishReminder(DesktopAttendanceReminder reminder) async {
+    final at = authoritativeNow;
+    var sentToWindows = false;
     try {
-      final p = visible.first;
-      await alerts.show(
-        DesktopAttendanceReminder(
-          'test|${p.key}',
-          authoritativeNow,
-          p,
-          test: true,
-        ),
-        () {
-          if (mounted) openQuick(p);
-        },
-      );
-      if (mounted) {
-        setState(
-          () => notificationError =
-              'Đã gửi thông báo thử. Kiểm tra thông báo Windows và chế độ Không làm phiền.',
-        );
-      }
+      await alerts.show(reminder, () {
+        if (mounted) openQuick(reminder.lesson);
+      });
+      sentToWindows = true;
+    } catch (_) {
+      // Record the attempt even when Windows rejected the request.
+    }
+    if (!mounted) return;
+    try {
+      await history.record(reminder, at, sentToWindows: sentToWindows);
     } catch (_) {
       if (mounted) {
-        setState(
-          () => notificationError =
-              'Windows chưa hiển thị được thông báo. Kiểm tra quyền thông báo cho FAP Attendance.',
-        );
+        setState(() {
+          notificationError = sentToWindows
+              ? 'Đã gửi yêu cầu tới Windows nhưng chưa lưu được lịch sử.'
+              : 'Gửi tới Windows thất bại và chưa lưu được lịch sử.';
+        });
       }
+      return;
+    }
+    if (mounted && (!sentToWindows || reminder.test)) {
+      setState(() {
+        notificationError = sentToWindows
+            ? 'Đã gửi yêu cầu thử tới Windows và lưu vào lịch sử.'
+            : 'Gửi tới Windows thất bại. Xem lần nhắc này trong lịch sử.';
+      });
     }
   }
 

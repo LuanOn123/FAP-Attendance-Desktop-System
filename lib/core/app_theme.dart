@@ -16,6 +16,12 @@ ThemeData buildTheme() {
       primaryContainer: AppPalette.orangeSoft,
       onPrimaryContainer: AppPalette.orangeDark,
       surface: Colors.white,
+      surfaceContainerLow: AppPalette.tonal,
+      surfaceContainer: AppPalette.tonalStrong,
+      onSurfaceVariant: AppPalette.muted,
+      secondaryContainer: AppPalette.orangeSoft,
+      onSecondaryContainer: AppPalette.orangeDark,
+      tertiary: AppPalette.info,
       onSurface: AppPalette.ink,
       outlineVariant: AppPalette.line,
     ),
@@ -39,13 +45,14 @@ ThemeData buildTheme() {
       backgroundColor: Colors.white,
       foregroundColor: AppPalette.ink,
       surfaceTintColor: Colors.transparent,
-      toolbarHeight: 80,
+      toolbarHeight: 72,
       centerTitle: false,
       titleSpacing: 28,
     ),
     navigationRailTheme: const NavigationRailThemeData(
       backgroundColor: Colors.white,
       indicatorColor: AppPalette.orangeSoft,
+      indicatorShape: StadiumBorder(),
       selectedIconTheme: IconThemeData(color: AppPalette.orangeDark),
       unselectedIconTheme: IconThemeData(color: AppPalette.muted),
       selectedLabelTextStyle: TextStyle(
@@ -74,7 +81,7 @@ ThemeData buildTheme() {
       color: Colors.white,
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         side: const BorderSide(color: AppPalette.line),
       ),
     ),
@@ -82,7 +89,7 @@ ThemeData buildTheme() {
       style: FilledButton.styleFrom(
         minimumSize: const Size(48, 48),
         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: const StadiumBorder(),
         textStyle: const TextStyle(
           fontFamily: 'Segoe UI',
           fontWeight: FontWeight.w700,
@@ -94,18 +101,18 @@ ThemeData buildTheme() {
       style: OutlinedButton.styleFrom(
         minimumSize: const Size(48, 48),
         side: const BorderSide(color: AppPalette.line),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: const StadiumBorder(),
       ),
     ),
     dividerTheme: const DividerThemeData(color: AppPalette.line, thickness: 1),
     chipTheme: ChipThemeData(
       backgroundColor: AppPalette.orangeSoft,
       side: BorderSide.none,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      shape: const StadiumBorder(),
     ),
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: const StadiumBorder(),
     ),
   );
 }

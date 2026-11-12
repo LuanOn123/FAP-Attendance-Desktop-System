@@ -2,11 +2,13 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../../core/app_config.dart';
 import '../../models/class_model.dart';
+import '../../models/quick_attendance_draft.dart' show attendanceSearchText;
 import '../../models/roster.dart';
 import '../../models/schedule.dart';
 import '../../repositories/schedule_repository.dart';
 import '../../services/markbook_reader.dart';
 import '../../services/schedule_clock.dart';
+import '../../shared/widgets/section_header.dart';
 
 class ClassesScreen extends StatefulWidget {
   final List<ClassModel> classes;
@@ -31,6 +33,8 @@ class ClassesScreen extends StatefulWidget {
 class _ClassesScreenState extends State<ClassesScreen> {
   String? selectedKey, error;
   List<RosterStudent> students = [];
+  final search = TextEditingController();
+  String query = '';
   bool busy = false;
   int generation = 0;
   List<ClassTarget> get targets =>
@@ -38,6 +42,10 @@ class _ClassesScreenState extends State<ClassesScreen> {
   Future<void> select(ClassTarget target) async {
     final request = ++generation;
     setState(() {
+      if (selectedKey != target.key) {
+        query = '';
+        search.clear();
+      }
       selectedKey = target.key;
       busy = true;
       error = null;
@@ -57,6 +65,12 @@ class _ClassesScreenState extends State<ClassesScreen> {
     } finally {
       if (mounted && request == generation) setState(() => busy = false);
     }
+  }
+
+  @override
+  void dispose() {
+    search.dispose();
+    super.dispose();
   }
 
   Future<void> import() async {
@@ -80,18 +94,21 @@ class _ClassesScreenState extends State<ClassesScreen> {
   Widget build(BuildContext context) {
     final options = targets;
     final selected = options.where((t) => t.key == selectedKey).firstOrNull;
+    final visible = query.isEmpty
+        ? students
+        : students.where((student) {
+            return attendanceSearchText(
+              '${student.fullName} ${student.studentCode}',
+            ).contains(query);
+          }).toList();
     return ListView(
       padding: const EdgeInsets.all(28),
       children: [
-        Text(
-          'Lớp học & sinh viên',
-          style: Theme.of(
-            context,
-          ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700),
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          'Danh sách lớp từ lịch dạy. Nhập markbook để thêm sinh viên vào đúng lớp và môn học.',
+        const SectionHeader(
+          eyebrow: 'QUẢN LÝ GIẢNG DẠY',
+          title: 'Lớp học & sinh viên',
+          subtitle:
+              'Xem danh sách sinh viên theo lớp và học kỳ. Nhập markbook để cập nhật danh sách dùng chung.',
         ),
         const SizedBox(height: 20),
         Wrap(
@@ -138,17 +155,65 @@ class _ClassesScreenState extends State<ClassesScreen> {
             style: TextStyle(color: Theme.of(context).colorScheme.error),
           ),
         if (selected != null && !busy && error == null) ...[
-          Text(
-            '${selected.label} · ${students.length} sinh viên',
-            style: Theme.of(context).textTheme.titleLarge,
+          Card(
+            child: ListTile(
+              leading: const CircleAvatar(child: Icon(Icons.school_outlined)),
+              title: Text(
+                selected.label,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              subtitle: Wrap(
+                spacing: 12,
+                children: [
+                  Text('Học kỳ: ${selected.semester}'),
+                  Text('${students.length} sinh viên'),
+                ],
+              ),
+            ),
           ),
           const SizedBox(height: 16),
           if (students.isEmpty)
             const Text(
               'Lớp chưa có sinh viên. Chọn Nhập sinh viên từ Excel / ODS để thêm danh sách.',
             ),
-          Text('Học kỳ: ${selected.semester}'),
-          const SizedBox(height: 16),
+          if (students.isNotEmpty) ...[
+            Text(
+              'Danh sách sinh viên',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: SizedBox(
+                width: 440,
+                child: TextField(
+                  controller: search,
+                  onChanged: (value) =>
+                      setState(() => query = attendanceSearchText(value)),
+                  decoration: InputDecoration(
+                    hintText: 'Tìm tên hoặc MSSV',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: query.isEmpty
+                        ? null
+                        : IconButton(
+                            tooltip: 'Xóa tìm kiếm',
+                            onPressed: () => setState(() {
+                              query = '';
+                              search.clear();
+                            }),
+                            icon: const Icon(Icons.clear),
+                          ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            if (visible.isEmpty)
+              const Text('Không có sinh viên phù hợp.')
+            else
+              StudentTable(students: visible),
+            const SizedBox(height: 20),
+          ],
           Text(
             'Các slot sắp tới',
             style: Theme.of(context).textTheme.titleMedium,
@@ -220,8 +285,6 @@ class _ClassesScreenState extends State<ClassesScreen> {
                     }
                   },
           ),
-          const SizedBox(height: 20),
-          if (students.isNotEmpty) StudentTable(students: students),
         ],
       ],
     );

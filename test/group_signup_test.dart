@@ -61,7 +61,21 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Giao việc cho nhóm'));
+      final roster = find
+          .descendant(
+            of: find.byType(StudyGroups),
+            matching: find.byType(Scrollable),
+          )
+          .first;
+      final group = find.text('Nhóm 1 · 1 thành viên').hitTestable();
+      await tester.scrollUntilVisible(group, 150, scrollable: roster);
+      await tester.tap(group);
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.text('Giao việc cho nhóm').hitTestable(),
+        150,
+        scrollable: roster,
+      );
       await tester.tap(find.text('Giao việc cho nhóm'));
       await tester.pumpAndSettle();
       expect(reads, [
@@ -70,10 +84,12 @@ void main() {
       await tester.scrollUntilVisible(
         find.text('Đọc yêu cầu PRM'),
         150,
-        scrollable: find.descendant(
-          of: find.byType(GroupTasksPage),
-          matching: find.byType(Scrollable),
-        ).first,
+        scrollable: find
+            .descendant(
+              of: find.byType(GroupTasksPage),
+              matching: find.byType(Scrollable),
+            )
+            .first,
       );
       expect(find.text('Đã đọc 1/1 · Email đã gửi 0/1'), findsOneWidget);
       await tester.pumpWidget(const SizedBox.shrink());
@@ -198,6 +214,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Nhóm 1 · 2 thành viên'), findsOneWidget);
       expect(methods, isNot(contains('saveGroupPlan')));
+      await tester.tap(find.text('Tin nhắn'));
+      await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), 'Bản nháp');
       version = 3;
       final calls = methods.where((m) => m == 'getGroupPlan').length;

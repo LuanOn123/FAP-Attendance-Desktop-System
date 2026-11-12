@@ -65,6 +65,7 @@ class _GroupScreenState extends State<GroupScreen> {
           child: StudyGroups(
             key: ValueKey(selected),
             classId: selected!,
+            startInChat: true,
             call: (method, data) => widget.repository.call(method, data),
           ),
         ),

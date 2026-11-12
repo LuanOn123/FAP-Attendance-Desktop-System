@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+const firebaseGroupSignup = bool.fromEnvironment('FIREBASE_GROUP_SIGNUP');
+
 String _signupTime(Object? value) {
   final parsed = DateTime.tryParse('$value');
   if (parsed == null) return 'Chưa có';
@@ -79,7 +81,15 @@ class _GroupSignupPanelState extends State<GroupSignupPanel> {
     reading = true;
     try {
       final value = Map<String, dynamic>.from(
-        await widget.call('getGroupSignupSheet', {'classId': widget.classId})
+        await widget.call(
+              firebaseGroupSignup
+                  ? 'firebaseGroupSignup'
+                  : 'getGroupSignupSheet',
+              {
+                'classId': widget.classId,
+                if (firebaseGroupSignup) 'action': 'status',
+              },
+            )
             as Map,
       );
       if (!mounted) return;
@@ -92,8 +102,9 @@ class _GroupSignupPanelState extends State<GroupSignupPanel> {
     } catch (_) {
       if (mounted) {
         setState(
-          () => error =
-              'Chưa kiểm tra được Sheet đăng ký. Backend cần có tính năng này; bấm tải lại để thử.',
+          () => error = firebaseGroupSignup
+              ? 'Chưa tải được đăng ký nhóm. Bấm tải lại để thử.'
+              : 'Chưa kiểm tra được Sheet đăng ký. Backend cần có tính năng này; bấm tải lại để thử.',
         );
       }
     } finally {
@@ -133,8 +144,10 @@ class _GroupSignupPanelState extends State<GroupSignupPanel> {
     if (method == 'createGroupSignupSheet' && pendingCreate == null) {
       final version = widget.version, count = widget.groupCount;
       if (!await confirm(
-        'Mở đăng ký nhóm bằng Google Sheets?',
-        '${widget.existingGroupCount > 0 ? 'Giữ ${widget.existingGroupCount} nhóm đã lưu và lựa chọn hiện tại.' : 'Tạo ${widget.groupCount} nhóm trống để sinh viên tự chọn.'}\n\nTạo một file riêng, cấp quyền cho email trường trong danh sách lớp. Mỗi sinh viên chỉ sửa ô chọn nhóm của mình. Các bạn cùng lớp xem được tên và MSSV trong bảng. Sau khi mở, chốt đăng ký trước khi sửa nhóm trực tiếp trong app.',
+        firebaseGroupSignup
+            ? 'Mở đăng ký nhóm trên Student Web?'
+            : 'Mở đăng ký nhóm bằng Google Sheets?',
+        '${widget.existingGroupCount > 0 ? 'Giữ ${widget.existingGroupCount} nhóm đã lưu và lựa chọn hiện tại.' : 'Tạo ${widget.groupCount} nhóm trống để sinh viên tự chọn.'}${firebaseGroupSignup ? '\n\nSinh viên đăng nhập Student Web để chọn nhóm. Chốt đăng ký trước khi sửa nhóm trực tiếp.' : '\n\nTạo một file riêng, cấp quyền cho email trường trong danh sách lớp. Mỗi sinh viên chỉ sửa ô chọn nhóm của mình. Các bạn cùng lớp xem được tên và MSSV trong bảng. Sau khi mở, chốt đăng ký trước khi sửa nhóm trực tiếp trong app.'}',
       )) {
         return;
       }
@@ -153,7 +166,9 @@ class _GroupSignupPanelState extends State<GroupSignupPanel> {
     if (method == 'closeGroupSignupSheet' &&
         !await confirm(
           'Chốt đăng ký?',
-          'Dừng cho sinh viên đổi nhóm trên Sheet và giữ kết quả đã đồng bộ. Sinh viên chưa chọn nhóm sẽ còn trong danh sách chưa phân nhóm để giảng viên xử lý.',
+          firebaseGroupSignup
+              ? 'Dừng cho sinh viên đổi nhóm và giữ kết quả hiện tại.'
+              : 'Dừng cho sinh viên đổi nhóm trên Sheet và giữ kết quả đã đồng bộ. Sinh viên chưa chọn nhóm sẽ còn trong danh sách chưa phân nhóm để giảng viên xử lý.',
         )) {
       return;
     }
@@ -165,10 +180,19 @@ class _GroupSignupPanelState extends State<GroupSignupPanel> {
     try {
       final value = Map<String, dynamic>.from(
         await widget.call(
-              method,
+              firebaseGroupSignup ? 'firebaseGroupSignup' : method,
               method == 'createGroupSignupSheet'
-                  ? pendingCreate!
-                  : {'classId': widget.classId},
+                  ? {
+                      ...pendingCreate!,
+                      if (firebaseGroupSignup) 'action': 'open',
+                    }
+                  : {
+                      'classId': widget.classId,
+                      if (firebaseGroupSignup) ...{
+                        'action': 'close',
+                        'roundId': sheet?['roundId'],
+                      },
+                    },
             )
             as Map,
       );
@@ -185,7 +209,7 @@ class _GroupSignupPanelState extends State<GroupSignupPanel> {
               : message.contains('CLASS_TOO_LARGE')
               ? 'Danh sách lớp quá lớn cho bảng đăng ký hiện tại. Liên hệ quản trị viên.'
               : message.contains('GROUP_SIGNUP_OPEN')
-              ? 'Lớp đã có lượt đăng ký đang mở. Tải lại Sheet để tiếp tục.'
+              ? 'Lớp đã có lượt đăng ký đang mở. Tải lại để tiếp tục.'
               : message.contains('GROUP_MEMBER_EMAIL_INVALID')
               ? 'Kiểm tra email trường bị thiếu hoặc trùng trong danh sách sinh viên.'
               : message.contains('GROUP_SIGNUP_SETUP_REQUIRED')
@@ -193,6 +217,8 @@ class _GroupSignupPanelState extends State<GroupSignupPanel> {
               : message.contains('VERSION_CONFLICT') ||
                     message.contains('ROSTER_CHANGED')
               ? 'Nhóm đã thay đổi. Tải lại danh sách để kiểm tra trước khi mở đăng ký.'
+              : firebaseGroupSignup
+              ? 'Chưa xác nhận kết quả đăng ký nhóm. Tải lại trạng thái rồi thử lại.'
               : 'Chưa xác nhận kết quả. Tạo Sheet có thể mất thời gian; thử lại cùng lượt để tránh tạo trùng. Kiểm tra quyền Google Sheets/Drive nếu còn lỗi.';
           if (message.contains('VERSION_CONFLICT') ||
               message.contains('ROSTER_CHANGED') ||
@@ -238,14 +264,18 @@ class _GroupSignupPanelState extends State<GroupSignupPanel> {
               'Sinh viên tự chọn nhóm',
               style: Theme.of(context).textTheme.titleMedium,
             ),
-            Text('Google Sheets · ${labels[state] ?? state}'),
+            Text(
+              '${firebaseGroupSignup ? 'Student Web' : 'Google Sheets'} · ${labels[state] ?? state}',
+            ),
             if (sheet != null && state != 'NONE')
               Text(
                 '${sheet!['assignedCount']}/${sheet!['studentCount']} đã có nhóm · ${sheet!['groupCount']} nhóm',
               ),
             if (state == 'OPEN')
-              const Text(
-                'Sheet đồng bộ khoảng mỗi phút. Màn hình nhóm tự kiểm tra kết quả mỗi 15 giây khi không có bản nháp.',
+              Text(
+                firebaseGroupSignup
+                    ? 'Sinh viên chọn nhóm trên Student Web. Kết quả cập nhật vào danh sách nhóm của lớp.'
+                    : 'Sheet đồng bộ khoảng mỗi phút. Màn hình nhóm tự kiểm tra kết quả mỗi 15 giây khi không có bản nháp.',
               ),
             if (sheet?['lastError']?.toString().isNotEmpty == true)
               const Text(
@@ -255,7 +285,7 @@ class _GroupSignupPanelState extends State<GroupSignupPanel> {
               Text('Đồng bộ gần nhất: ${_signupTime(sheet!['lastSyncedAt'])}'),
             if (disabled)
               const Text(
-                'Lưu hoặc bỏ thay đổi/bản nháp trước khi thao tác Sheet.',
+                'Lưu hoặc bỏ thay đổi và bản nháp trước khi thao tác.',
               ),
             if (error != null)
               Text(
@@ -274,21 +304,31 @@ class _GroupSignupPanelState extends State<GroupSignupPanel> {
                     onPressed: busy || disabled
                         ? null
                         : () => run('createGroupSignupSheet'),
-                    icon: const Icon(Icons.table_chart_outlined),
+                    icon: const Icon(
+                      firebaseGroupSignup
+                          ? Icons.groups_outlined
+                          : Icons.table_chart_outlined,
+                    ),
                     label: Text(
                       pendingCreate == null
-                          ? 'Tạo Sheet chọn nhóm'
-                          : 'Thử tạo lại cùng Sheet',
+                          ? (firebaseGroupSignup
+                                ? 'Mở đăng ký nhóm'
+                                : 'Tạo Sheet chọn nhóm')
+                          : (firebaseGroupSignup
+                                ? 'Thử mở lại'
+                                : 'Thử tạo lại cùng Sheet'),
                     ),
                   ),
-                if (state == 'PREPARING' && pendingCreate == null)
+                if (!firebaseGroupSignup &&
+                    state == 'PREPARING' &&
+                    pendingCreate == null)
                   OutlinedButton(
                     onPressed: busy || disabled
                         ? null
                         : () => run('resumeGroupSignupSheet'),
                     child: const Text('Tiếp tục tạo Sheet'),
                   ),
-                if (state == 'OPEN')
+                if (!firebaseGroupSignup && state == 'OPEN')
                   OutlinedButton(
                     onPressed: busy || disabled
                         ? null
@@ -304,9 +344,13 @@ class _GroupSignupPanelState extends State<GroupSignupPanel> {
                   ),
                 TextButton(
                   onPressed: busy ? null : read,
-                  child: const Text('Tải lại Sheet'),
+                  child: const Text(
+                    firebaseGroupSignup ? 'Tải lại đăng ký' : 'Tải lại Sheet',
+                  ),
                 ),
-                if (url != null && state != 'PREPARING') ...[
+                if (!firebaseGroupSignup &&
+                    url != null &&
+                    state != 'PREPARING') ...[
                   OutlinedButton(
                     onPressed: () async {
                       await Clipboard.setData(ClipboardData(text: url));
