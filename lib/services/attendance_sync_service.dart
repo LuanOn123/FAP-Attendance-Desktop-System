@@ -99,15 +99,16 @@ class AttendanceSyncService {
           'Danh sách chưa chốt đầy đủ hoặc bị trùng. Mở Điểm danh và chốt danh sách vắng trước khi đồng bộ.',
         );
       }
-      final status = found.single.status.toUpperCase();
-      if (!['PRESENT', 'LATE', 'ABSENT'].contains(status)) {
-        throw const AppException('Có trạng thái chưa hỗ trợ đồng bộ.');
-      }
-      entries.add({
-        'studentCode': code,
-        'status': status == 'ABSENT' ? 'absent' : 'present',
-        'originalStatus': status,
-      });
+      final status = found.single.status.trim().toUpperCase();
+      final fapStatus = switch (status) {
+        'PRESENT' || 'LATE' => 'present',
+        'ABSENT' || 'EXCUSED' => 'absent',
+        _ => throw AppException(
+          'MSSV $code có trạng thái chưa hỗ trợ đồng bộ: '
+          '${status.isEmpty ? '(trống)' : status}.',
+        ),
+      };
+      entries.add({'studentCode': code, 'status': fapStatus});
     }
     entries.sort((a, b) => a['studentCode']!.compareTo(b['studentCode']!));
     // Recheck reset/close while loading the roster and attendance snapshot.

@@ -15,7 +15,7 @@
 5. Click **Bắt đầu tự điểm danh**. The extension selects attendance controls by **MSSV**, not table row order.
 6. Review the page, then click the FAP Save button yourself. The extension never clicks Save or submits the form.
 
-PRESENT → Present/Có mặt; ABSENT → Absent/Vắng mặt; LATE → Present/Có mặt for the two-state FAP form. The popup displays this mapping. No student absent from the spreadsheet is automatically marked absent.
+The FAP form receives two statuses. PRESENT and LATE become Present/Có mặt. ABSENT and EXCUSED become Absent/Vắng mặt. Students outside the spreadsheet keep their current selection.
 
 Importing Excel works without the desktop app running. The existing web → desktop roster workflow remains available separately. Closing the popup discards the selected workbook; reopen and choose it again if needed.
 

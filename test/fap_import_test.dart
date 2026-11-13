@@ -1,9 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fap_attendance/core/app_config.dart';
 import 'package:fap_attendance/models/fap_import_dto.dart';
 import 'package:fap_attendance/models/roster.dart';
+import 'package:fap_attendance/repositories/attendance_repository.dart';
 import 'package:fap_attendance/repositories/schedule_repository.dart';
+import 'package:fap_attendance/services/attendance_sync_service.dart';
 import 'package:fap_attendance/services/fap_import_service.dart';
 import 'package:fap_attendance/services/integration_server.dart';
 
@@ -33,6 +36,87 @@ Map<String, dynamic> sampleImport() => {
 };
 
 void main() {
+  test(
+    'desktop sync sends only present and absent and rejects unknown states',
+    () async {
+      const lecturerId = 'demo-lecturer';
+      final schedules = DemoScheduleRepository();
+      final attendance = DemoAttendanceRepository();
+      final imported = await FapImportService(
+        schedules,
+        lecturerId,
+      ).importSession(FapImportDto.fromJson(sampleImport()));
+      final cls = (await schedules.getClasses()).singleWhere(
+        (item) => item.classCode == imported.schedule.classCode,
+      );
+      final session = await attendance.startSession(
+        date: imported.date,
+        classId: cls.classId,
+        slot: 1,
+        startTime: '07:30',
+        endTime: '09:50',
+        lecturerId: lecturerId,
+      );
+      await attendance.markAbsent(
+        sessionId: session.sessionId,
+        studentCodes: ['SE123456', 'SE123457'],
+        lecturerEmail: 'teacher@example.com',
+      );
+      await attendance.closeSession(session.sessionId);
+      final record = (await attendance.getSessionAttendance(
+        session.sessionId,
+      )).singleWhere((item) => item.studentCode == 'SE123456');
+      Future<void> setStatus(String status) =>
+          attendance.updateAttendanceStatus(
+            attendanceId: record.attendanceId,
+            status: status,
+            note: 'Test correction',
+            updatedBy: lecturerId,
+          );
+      final service = AttendanceSyncService(schedules, attendance, lecturerId);
+      final query = {
+        'courseCode': 'SWE102',
+        'classCode': 'SE1701',
+        'date': imported.date,
+        'slot': 1,
+        'startTime': '07:30',
+        'endTime': '09:50',
+      };
+
+      await setStatus('EXCUSED');
+      final report = await service.report(query);
+      expect(report['data']['entries'][0], {
+        'studentCode': 'SE123456',
+        'status': 'absent',
+      });
+      expect(
+        (await attendance.getSessionAttendance(
+          session.sessionId,
+        )).singleWhere((item) => item.studentCode == 'SE123456').status,
+        'EXCUSED',
+      );
+
+      await setStatus('LATE');
+      final lateReport = await service.report(query);
+      expect(lateReport['data']['entries'][0], {
+        'studentCode': 'SE123456',
+        'status': 'present',
+      });
+
+      await setStatus('UNKNOWN');
+      await expectLater(
+        service.report(query),
+        throwsA(
+          isA<AppException>().having(
+            (error) => error.message,
+            'message',
+            allOf(contains('SE123456'), contains('UNKNOWN')),
+          ),
+        ),
+      );
+    },
+  );
+
   test(
     'invalid date/slot/empty roster/conflicting identities rejected before save',
     () {

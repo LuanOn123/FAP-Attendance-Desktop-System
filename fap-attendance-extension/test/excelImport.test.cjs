@@ -17,10 +17,14 @@ function fixture(codes = ['SA194282', 'SE193416', 'SS180069']) {
     <label><input type="radio" name="r${i}" value="0">Absent</label><label><input type="radio" name="r${i}" value="1">Present</label></td></tr>`).join('')}</table><button type="submit">Save</button></form>`);
   return dom;
 }
-test('Excel parses statuses, exact metadata and late mapping', () => {
+test('Excel yields only present and absent with exact session metadata', () => {
   const rows = input(); rows[1][1] = 'LATE'; rows[1][5] = 'L';
+  rows[2][1] = 'EXCUSED';
   const result = parseRows(rows, filename);
-  assert.equal(result.entries[0].status, 'present');
+  assert.deepEqual(result.entries, [
+    {studentCode: 'SE193416', fullName: 'Student A', status: 'present'},
+    {studentCode: 'SA194282', fullName: 'Student B', status: 'absent'},
+  ]);
   assert.equal(result.metadata.date, '2026-09-22');
   assert.equal(result.metadata.slot, 1);
 });

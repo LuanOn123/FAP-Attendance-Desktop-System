@@ -19,13 +19,14 @@
       if (!/^[A-Z]{2,6}\d{4,10}$/.test(studentCode)) throw new Error(`MSSV không hợp lệ ở dòng ${headerIndex + index + 2}.`);
       if (seen.has(studentCode)) throw new Error('MSSV trùng trong Excel: ' + studentCode);
       seen.add(studentCode);
-      const originalStatus = value(row, 'trang thai').toUpperCase();
-      if (!['PRESENT', 'ABSENT', 'LATE'].includes(originalStatus)) throw new Error('Trạng thái không hỗ trợ: ' + studentCode + ' (' + originalStatus + ').');
+      const inputStatus = value(row, 'trang thai').toUpperCase();
+      const status = {PRESENT: 'present', LATE: 'present', ABSENT: 'absent', EXCUSED: 'absent'}[inputStatus];
+      if (status !== 'present' && status !== 'absent') throw new Error('Trạng thái không hỗ trợ: ' + studentCode + ' (' + inputStatus + ').');
       if (value(row, 'lop hoc').toUpperCase() !== metadata.classCode || value(row, 'ma mon').toUpperCase() !== metadata.courseCode) throw new Error('Môn/lớp trong Excel không khớp tên file.');
-      const status = originalStatus === 'ABSENT' ? 'absent' : 'present';
       const symbol = value(row, 'ky hieu fap').toUpperCase();
-      if (symbol && symbol !== ({ABSENT: 'A', PRESENT: 'P', LATE: 'L'}[originalStatus])) throw new Error('Ký hiệu FAP mâu thuẫn trạng thái: ' + studentCode);
-      entries.push({studentCode, fullName: value(row, 'ho va ten'), status, originalStatus});
+      const expectedSymbol = status === 'absent' ? 'A' : 'P';
+      if (symbol && symbol !== expectedSymbol && !(inputStatus === 'LATE' && symbol === 'L')) throw new Error('Ký hiệu FAP mâu thuẫn trạng thái: ' + studentCode);
+      entries.push({studentCode, fullName: value(row, 'ho va ten'), status});
     }
     if (!entries.length || entries.length > 1000) throw new Error('File phải chứa từ 1 đến 1000 sinh viên.');
     return {metadata, entries};

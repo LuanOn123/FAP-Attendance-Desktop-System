@@ -3,9 +3,9 @@ Uri studentCheckinUrl({
   required String sessionId,
   required String token,
   required bool secretEnabled,
-}) => Uri.https('fap-attendance-cba45.web.app', '/checkin', {
+}) => Uri.https('fap-attendance-88920.web.app', '/checkin', {
   'sessionId': sessionId,
   'token': token,
-  'mode': secretEnabled ? 'student-code-secret' : 'student-code',
-  'v': '3',
+  'mode': secretEnabled ? 'google-secret' : 'google',
+  'v': '5',
 });
