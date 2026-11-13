@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
-import 'dart:convert';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
-import '../../services/portal_grade_import.dart';
 import '../../services/grade_excel_import.dart';
 import '../../services/excel_export_service.dart';
 import 'excel_grade_import_dialog.dart';
@@ -191,61 +189,6 @@ class _StudentPortalScreenState extends State<StudentPortalScreen> {
     Future.delayed(const Duration(seconds: 1), () {
       name.dispose();
       max.dispose();
-    });
-  }
-
-  Future<void> importGrades() async {
-    if (!await discardChanges() || !mounted) return;
-    await run(() async {
-      final selection = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['json'],
-      );
-      if (selection == null || !mounted) return;
-      final path = selection.files.single.path;
-      if (path == null) {
-        throw const AppException('Không đọc được đường dẫn file.');
-      }
-      final file = File(path);
-      if (await file.length() > 5 * 1024 * 1024) {
-        throw const AppException('File lớn hơn 5 MB.');
-      }
-      final input = PortalRow.from(
-        jsonDecode(await file.readAsString()) as Map,
-      );
-      final imported = preparePortalGradeImport(
-        input,
-        classes.singleWhere((c) => c['classId'] == classId),
-        book!,
-      );
-      if (!mounted) return;
-      final ok = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Xem trước nhập điểm'),
-          content: Text(
-            'Khớp đủ ${(imported['students'] as List).length} sinh viên của lớp/môn/học kỳ đang chọn.\nThay các cột điểm bằng ${(imported['components'] as List).map((c) => c['name']).join(', ')}.\nDữ liệu sẽ hiện trên bảng để bạn kiểm tra, chưa lưu và chưa công bố.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Hủy'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Đưa vào bảng nháp'),
-            ),
-          ],
-        ),
-      );
-      if (ok == true && mounted) {
-        setState(() {
-          book = imported;
-          dirty = true;
-          bookRevision++;
-          publishKey = null;
-        });
-      }
     });
   }
 
@@ -573,11 +516,6 @@ class _StudentPortalScreenState extends State<StudentPortalScreen> {
                       },
                 icon: const Icon(Icons.calculate_outlined),
                 label: const Text('Tính điểm FE/PE'),
-              ),
-              OutlinedButton.icon(
-                onPressed: busy ? null : importGrades,
-                icon: const Icon(Icons.file_open_outlined),
-                label: const Text('Nhập điểm từ JSON'),
               ),
               FilledButton.icon(
                 onPressed:

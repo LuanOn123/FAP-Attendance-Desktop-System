@@ -5,9 +5,9 @@
 1. Mở **Điểm số**, chọn đúng học kỳ/môn/lớp.
 2. Bấm **Tải file mẫu Excel** để lấy danh sách MSSV, các cột điểm và điểm hiện tại của lớp. Hoặc dùng file `.xlsx` có sẵn.
 3. Nhập điểm trong Excel rồi lưu file. Với `.xls`, dùng Save As thành `.xlsx`.
-4. Bấm **Nhập điểm từ Excel**. Chọn sheet, dòng tiêu đề, cột MSSV và dòng dữ liệu cuối; loại các dòng tổng kết ở cuối file.
-5. Chọn những cột điểm cần nhập. Ghép với cột điểm hiện có, hoặc tạo cột mới với tên và thang điểm riêng. Có thể ghép thêm cột nhận xét.
-6. Bấm **Kiểm tra / Xem trước**, kiểm tra từng thay đổi, sửa file nếu có lỗi. Tích xác nhận đúng lớp rồi bấm **Đưa vào bảng nháp**.
+4. Bấm **Nhập điểm từ Excel** và chọn file. Ứng dụng dò sheet, dòng tiêu đề, cột MSSV và tự ghép các cột khớp tên duy nhất. Các thay đổi hiện ngay để kiểm tra.
+5. Với cột chưa khớp hoặc có tên trùng, chọn bỏ qua, ghép với cột hiện có hoặc thêm cột mới. Mở **Tùy chọn đọc Excel** nếu cần chỉnh sheet, giới hạn dòng hoặc nhập nhận xét. Bản xem trước tự cập nhật.
+6. Kiểm tra lớp, điểm cũ và điểm mới rồi bấm nút xác nhận để đưa thay đổi vào bản nháp. Nút xác nhận ghi rõ thao tác ghi đè hoặc thêm cột nếu có.
 7. Bấm **Lưu bản nháp** để lưu lên backend chung. Sau đó dùng **Xem trước / Công bố** khi muốn sinh viên xem điểm trên Student Web.
 
 ## Quy tắc
@@ -19,7 +19,7 @@
 - Nếu file có cột Học kỳ/Mã môn/Mã lớp, mọi dòng phải khớp lớp được chọn. File không có các cột này vẫn cần xác nhận lớp trong màn xem trước.
 - Công thức không được tính lại. Chỉ dùng kết quả Excel đã lưu khi giảng viên chủ động bật tùy chọn; công thức không có kết quả vẫn bị chặn.
 - Tối đa file 20 MB, nội dung ZIP khai báo 100 MB, 20.000 dòng/sheet, 256 cột/sheet và 30 cột điểm trong bảng. Chỉ đọc các sheet hiển thị.
-- Hủy hoặc thay đổi cách ghép cột không ghi lên server. Thay đổi tùy chọn sẽ xóa kết quả xem trước và yêu cầu kiểm tra lại.
+- Hủy hoặc thay đổi cách ghép cột không ghi lên server.
 
 ## Liên kết ba nền tảng
 
@@ -30,5 +30,3 @@ Desktop và Mobile dành cho giảng viên; Student Web dành cho sinh viên. T�
 ## Phạm vi kiểm tra
 
 Đã kiểm tra bộ đọc XLSX, ghép cột, bảo toàn dữ liệu cũ, lỗi đầu vào, màn xem trước/xác nhận/hủy và quy tắc lưu/công bố của backend bằng test tự động. Chưa nhập/công bố điểm thật hoặc kiểm thử end-to-end với tài khoản trường trên deployment đang chạy.
-
-Mã nằm trên nhánh `codex/group-sheet-sync` của repo Desktop; chức năng nhập Excel được tách thành commit riêng. Chưa merge vào main.

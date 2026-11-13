@@ -8,6 +8,8 @@ void main() {
   Future<void> open(
     WidgetTester tester, {
     String code = 'SE001',
+    List<String> headers = const ['MSSV', 'Quiz'],
+    List<String>? row,
     required void Function(PortalRow?) completed,
   }) async {
     await tester.binding.setSurfaceSize(const Size(1400, 1200));
@@ -23,8 +25,8 @@ void main() {
                   builder: (_) => ExcelGradeImportDialog(
                     sheets: [
                       fixtures.sheet([
-                        ['MSSV', 'Quiz'],
-                        [code, '0'],
+                        headers,
+                        row ?? [code, '0'],
                       ]),
                     ],
                     target: fixtures.target,
@@ -43,75 +45,104 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  Finder apply() => find.widgetWithText(FilledButton, 'Đưa vào bảng nháp');
-  Future<void> check(WidgetTester tester) async {
-    await tester.ensureVisible(find.text('Kiểm tra / Xem trước'));
-    await tester.tap(find.text('Kiểm tra / Xem trước'));
+  Finder apply() => find.byType(FilledButton);
+  const overwrite = 'Xác nhận ghi đè vào bản nháp';
+
+  testWidgets('shows the preview immediately and applies on one confirmation', (
+    tester,
+  ) async {
+    PortalRow? result;
+    await open(
+      tester,
+      headers: [
+        'Học kỳ',
+        'Mã môn',
+        'Mã lớp',
+        'MSSV',
+        'Họ tên',
+        'Quiz',
+        'Nhận xét',
+      ],
+      row: ['FA26', 'PRM393', 'SE1848', 'SE001', 'Sinh viên A', '0', ''],
+      completed: (v) => result = v,
+    );
+    expect(find.text('Sheet dữ liệu'), findsNothing);
+    expect(
+      find.text('1/2 sinh viên khớp · 1 ô thay đổi · 0 cột mới'),
+      findsOneWidget,
+    );
+    expect(find.text('6 → 0'), findsOneWidget);
+    expect(result, isNull);
+    await tester.tap(find.text(overwrite));
     await tester.pumpAndSettle();
-  }
+    expect(result!['students'][0]['grades']['quiz'], 0);
+    expect(result!['students'][1]['grades']['quiz'], 5);
+    expect(result!['version'], 7);
+    expect(result!['activePublicationId'], 'published-before-import');
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
-    'preview and class confirmation required before returning draft; no publication change',
+    'changing options refreshes the preview and cancel returns no draft',
     (tester) async {
-      PortalRow? result;
-      await open(tester, completed: (v) => result = v);
-      expect(tester.widget<FilledButton>(apply()).onPressed, isNull);
-      await check(tester);
-      expect(tester.widget<FilledButton>(apply()).onPressed, isNull);
-      final confirmation = find.text(
-        'Tôi xác nhận file điểm thuộc FA26 · PRM393 · SE1848',
-      );
-      await tester.ensureVisible(confirmation);
-      await tester.tap(confirmation);
-      await tester.pumpAndSettle();
-      await tester.tap(apply());
-      await tester.pumpAndSettle();
-      expect(result!['students'][0]['grades']['quiz'], 0);
-      expect(result!['students'][1]['grades']['quiz'], 5);
-      expect(result!['version'], 7);
-      expect(result!['activePublicationId'], 'published-before-import');
-      expect(tester.takeException(), isNull);
-    },
-  );
-  testWidgets(
-    'changing import options invalidates confirmed preview; cancel returns no draft',
-    (tester) async {
-      PortalRow? result;
-      var returned = false;
+      var cancelled = false;
       await open(
         tester,
-        completed: (v) {
-          returned = true;
-          result = v;
-        },
+        row: ['SE001', ''],
+        completed: (v) => cancelled = v == null,
       );
-      await check(tester);
-      final confirmation = find.text(
-        'Tôi xác nhận file điểm thuộc FA26 · PRM393 · SE1848',
-      );
-      await tester.ensureVisible(confirmation);
-      await tester.tap(confirmation);
+      expect(tester.widget<FilledButton>(apply()).onPressed, isNull);
+      await tester.tap(find.text('Tùy chọn đọc Excel'));
       await tester.pumpAndSettle();
-      expect(tester.widget<FilledButton>(apply()).onPressed, isNotNull);
       await tester.ensureVisible(find.byType(SwitchListTile));
       await tester.tap(find.byType(SwitchListTile));
       await tester.pumpAndSettle();
-      expect(tester.widget<FilledButton>(apply()).onPressed, isNull);
-      expect(confirmation, findsNothing);
+      expect(find.text(overwrite), findsOneWidget);
       await tester.tap(find.text('Hủy'));
       await tester.pumpAndSettle();
-      expect(returned, isTrue);
-      expect(result, isNull);
-      expect(tester.takeException(), isNull);
+      expect(cancelled, isTrue);
     },
   );
-  testWidgets('wrong-class student cannot apply even after preview', (
+
+  testWidgets('unmatched column can be added after reviewing the mapping', (
     tester,
   ) async {
+    PortalRow? result;
+    await open(
+      tester,
+      headers: ['MSSV', 'Assigment'],
+      completed: (value) => result = value,
+    );
+    expect(tester.widget<FilledButton>(apply()).onPressed, isNull);
+    expect(find.text('Bỏ qua cột này'), findsOneWidget);
+    await tester.tap(find.byType(DropdownButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Thêm cột điểm mới').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Tên cột mới'), findsOneWidget);
+    expect(result, isNull);
+    await tester.tap(find.text('Xác nhận thêm cột'));
+    await tester.pumpAndSettle();
+    expect(result!['components'].last['name'], 'Assigment');
+    expect(result!['students'][0]['grades']['quiz'], 6);
+  });
+
+  testWidgets('duplicate Excel headers require manual selection', (
+    tester,
+  ) async {
+    await open(
+      tester,
+      headers: ['MSSV', 'Quiz', 'QUIZ'],
+      row: ['SE001', '0', '1'],
+      completed: (_) => fail('Must not apply'),
+    );
+    expect(find.textContaining('Tên cột lặp trong Excel'), findsNWidgets(2));
+    expect(tester.widget<FilledButton>(apply()).onPressed, isNull);
+  });
+
+  testWidgets('wrong-class student is blocked immediately', (tester) async {
     await open(tester, code: 'SE999', completed: (_) => fail('Must not apply'));
-    await check(tester);
     expect(find.textContaining('không thuộc lớp đang chọn'), findsOneWidget);
     expect(tester.widget<FilledButton>(apply()).onPressed, isNull);
-    expect(tester.takeException(), isNull);
   });
 }
